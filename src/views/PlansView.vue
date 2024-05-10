@@ -634,7 +634,7 @@ export default {
     },
     computed: {
         hasStatisticSettings() {
-            return this.filteredCategoryIds?.length && this.filteredDates?.length;
+            return !!(this.filteredCategoryIds?.length && this.filteredDates?.length);
         },
         categoriesStored() {
             return this.$store.getters.getData('categories') || [];

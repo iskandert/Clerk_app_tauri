@@ -121,8 +121,13 @@ export class Categories extends Entities {
         this.schema = schemas.category;
     }
     delete(id, { redefined_category_id } = {}) {
+        // TODO не работает
+        return;
         const { entity, index } = this._find(id);
         let result = [];
+
+        const isRedefinedCategoryExist =
+            redefined_category_id && this._find(redefined_category_id).index >= 0;
 
         const categ_actions = this.state.actions.data.filter(
             ({ category_id }) => entity._id === category_id
@@ -130,23 +135,23 @@ export class Categories extends Entities {
         if (categ_actions.length) {
             const actions = new Actions(this.state);
             categ_actions.forEach(action => {
-                if (redefined_category_id && this._find(redefined_category_id).index >= 0) {
-                    actions.add({
-                        ...action,
-                        category_id: redefined_category_id,
-                    });
+                if (isRedefinedCategoryExist) {
+                    actions._add(
+                        actions._create({
+                            ...action,
+                            category_id: redefined_category_id,
+                        })
+                    );
                 }
-                actions.delete(action._id);
-                result = result.concat(actions.getResult());
+                actions.delete(action._id); // TODO _delete
             });
+            result = result.concat(actions.getResult());
         }
 
         const categ_plans = this.state.plans.data.filter(
             ({ category_id }) => entity._id === category_id
         );
         if (categ_plans.length) {
-            const isRedefinedCategoryExist =
-                redefined_category_id && this._find(redefined_category_id).index >= 0;
             const redefined_category_plans = isRedefinedCategoryExist
                 ? this.state.plans.data.filter(({ category_id }) => {
                       return category_id === redefined_category_id;
@@ -160,14 +165,20 @@ export class Categories extends Entities {
                         dayjs(date).isSame(plan.date, 'month')
                     )?.sum;
                     plan.sum += sum || 0;
-                    plans.add({
-                        ...plan,
-                        category_id: redefined_category_id,
-                    });
+                    // plans.add({
+                    //     ...plan,
+                    //     category_id: redefined_category_id,
+                    // });
+                    plans._add(
+                        plans._create({
+                            ...plan,
+                            category_id: redefined_category_id,
+                        })
+                    );
                 }
-                plans.delete(plan._id);
-                result = result.concat(plans.getResult());
+                plans.delete(plan._id); // TODO _delete
             });
+            result = result.concat(plans.getResult());
         }
 
         this._delete(index);

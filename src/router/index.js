@@ -18,17 +18,18 @@ const routes = [
         component: LoginView,
     },
     {
-        path: '/main',
+        // path: '/main',
+        path: '/actions',
         name: 'main',
         component: AppLayout,
         meta: { auth: true },
         children: [
-            {
-                path: '/main',
-                name: 'home',
-                component: () => import('../views/HomeView.vue'),
-                meta: { auth: true },
-            },
+            // {
+            //     path: '/main',
+            //     name: 'home',
+            //     component: () => import('../views/HomeView.vue'),
+            //     meta: { auth: true },
+            // },
             {
                 path: '/actions',
                 name: 'actions',
@@ -58,7 +59,8 @@ const routes = [
             },
             {
                 path: '/',
-                redirect: '/main',
+                // redirect: '/main',
+                redirect: '/actions',
                 meta: { auth: true },
             },
         ],
@@ -85,7 +87,8 @@ router.beforeEach((to, from, next) => {
 
     // console.log('guard 1:', (to.fullPath === '/' || to.fullPath === '/login') && authorized)
     if ((to.fullPath === '/' || to.fullPath === '/login') && authorized) {
-        next('/main');
+        // next('/main');
+        next('/actions');
         return;
     }
     // console.log('guard 2:', requiresAuth && !authorized)

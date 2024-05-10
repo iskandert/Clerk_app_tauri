@@ -2,8 +2,9 @@
     <div class="container">
         <div
             class="logo"
-            @click="jumpRoute('/main')"
+            @click="jumpRoute('/actions')"
         >
+            <!-- @click="jumpRoute('/main')" -->
             <el-icon
                 :size="20"
                 color="white"
@@ -29,7 +30,7 @@
                 active-text-color="#fff"
                 text-color="var(--el-color-transparent-light-3)"
             >
-                <el-menu-item index="/main">Главная</el-menu-item>
+                <!-- <el-menu-item index="/main">Главная</el-menu-item> -->
                 <el-menu-item index="/actions">Операции</el-menu-item>
                 <el-menu-item index="/analitic">Аналитика</el-menu-item>
                 <el-menu-item index="/plans">Планы</el-menu-item>
@@ -321,7 +322,7 @@ nav {
 }
 
 .menu.el-menu {
-    --el-menu-item-height: calc(var(--header-height) - 2.5px);
+    --el-menu-horizontal-height: var(--header-height);
     border-bottom: none;
     display: none;
 }

@@ -4,7 +4,16 @@
             <div class="range__container">
                 <el-card>
                     <div class="title">
-                        <h4>Сегоднябрь</h4>
+                        <!-- <h4> -->
+                        <el-date-picker
+                            v-model="currentMonth"
+                            :disabled-date="time => time.getTime() > Date.now()"
+                            :clearable="false"
+                            :editable="false"
+                            format="MMMM YYYY"
+                            type="month"
+                        />
+                        <!-- </h4> -->
                         <div class="balance">
                             <template v-if="isCheckedBalance">
                                 <p class="main_balance">
@@ -139,9 +148,9 @@
             </div>
         </div>
         <div class="right-col">
-            <div class="plans__container">
+            <!-- <div class="plans__container">
                 <el-card>Планы</el-card>
-            </div>
+            </div> -->
             <div class="form_desktop__container">
                 <ActionsForm
                     class="light primary-shadow"
@@ -191,117 +200,117 @@
         </el-dialog>
     </div>
 </template>
-<script>
-import { shallowRef } from 'vue';
+<script setup>
+import { computed, onMounted, ref, shallowRef, watch } from 'vue';
 import ActionsForm from '../components/ActionsForm.vue';
 import BalanceForm from '../components/BalanceForm.vue';
-import { getEntityField, getFormattedCount } from '../services/utils';
+import { dayjs, getEntityField, getFormattedCount } from '../services/utils';
 import { Lock, Unlock, Plus, Minus, CirclePlusFilled, Warning } from '@element-plus/icons-vue';
 import { Config } from '../services/changings';
+import store from '../store';
+import router from '../router';
+import { useRoute } from 'vue-router';
 
-export default {
-    components: { Lock, Unlock, Plus, Minus, ActionsForm, Warning, BalanceForm },
-    setup() {
+const iconPlus = shallowRef(CirclePlusFilled);
+const actionDialog = ref(false);
+const isEditMode = ref(false);
+const balanceDialog = ref(false);
+const currentMonth = ref(new Date(dayjs().format('YYYY-MM-DD')));
+
+const categoriesStored = computed(() => {
+    return store.getters.getData('categories');
+});
+const actionsStored = computed(() => {
+    return store.getters.getData('actions');
+});
+const actionsByDays = computed(() => {
+    const today = dayjs(dayjs().format('YYYY-MM-DD'));
+
+    const getEmptyDate = date => {
+        const dateObj = dayjs(date);
+        let displayedDate = dateObj.format('D MMMM');
+
+        if (dateObj.year() < today.year()) displayedDate = dateObj.format('D MMMM YYYY[ г.]');
+        if (!today.diff(dateObj)) displayedDate = 'Сегодня';
+        if (today.diff(dateObj, 'day') === 1) displayedDate = 'Вчера';
+
         return {
-            // iconPlus: shallowRef(Plus),
-            iconPlus: shallowRef(CirclePlusFilled),
+            day: displayedDate,
+            actions: [],
         };
-    },
-    data() {
-        return {
-            actionDialog: false,
-            isEditMode: false,
-            balanceDialog: false,
-            //
-            getEntityField,
-            getFormattedCount,
-        };
-    },
-    computed: {
-        categoriesStored() {
-            return this.$store.getters.getData('categories');
-        },
-        actionsStored() {
-            return this.$store.getters.getData('actions');
-        },
-        actionsByDays() {
-            const days = new Set(this.actionsStored?.map(({ date }) => date.split('T')[0]));
-            const today = this.$dayjs(this.$dayjs().format('YYYY-MM-DD'));
+    };
 
-            return Array.from(days)
-                .sort((a, b) => new Date(b) - new Date(a))
-                .map(dateStr => {
-                    const date = this.$dayjs(dateStr);
-                    let displayedDate = date.format('D MMMM');
+    const result = {};
 
-                    if (date.year() < today.year())
-                        displayedDate = this.$dayjs(dateStr).format('D MMMM YYYY[ г.]');
-                    if (!today.diff(date)) displayedDate = 'Сегодня';
-                    if (today.diff(date, 'day') === 1) displayedDate = 'Вчера';
+    actionsStored.value
+        .slice()
+        .sort((a, b) => new Date(b._createdAt) - new Date(a._createdAt))
+        .forEach(action => {
+            if (!dayjs(action.date).isSame(currentMonth.value, 'month')) return;
 
-                    return {
-                        day: displayedDate,
-                        actions: this.actionsStored
-                            .filter(({ date }) => date.split('T')[0] === dateStr)
-                            .sort((a, b) => new Date(b._createdAt) - new Date(a._createdAt)),
-                    };
-                });
-        },
-        isCheckedBalance() {
-            return this.$store.getters.getData('config')?.checking_date;
-        },
-        currentBalance() {
-            const config = new Config();
-            return config.getCurrent();
-        },
-    },
-    methods: {
-        getActionClass(category_id) {
-            let status = getEntityField(this.categoriesStored, category_id, 'status');
-            let type = getEntityField(this.categoriesStored, category_id, 'type');
-            return status + ' ' + type;
-        },
-        openActionDialog() {
-            this.actionDialog = true;
-        },
-        callEditAction(action, isMobile = false) {
-            this.$router.push({
-                path: '/actions',
-                query: {
-                    ...action,
-                    isEdit: true,
-                },
-                replace: true,
-            });
-            this.isEditMode = true;
-            if (isMobile) this.actionDialog = true;
-        },
-        handleCancelAction() {
-            this.actionDialog = false;
-            this.isEditMode = false;
-            this.$router.push({
-                path: '/actions',
-                query: {
-                    isEdit: false,
-                },
-                replace: true,
-            });
-        },
-        openBalanceDialog() {
-            this.balanceDialog = true;
-        },
-        handleCancelBalance() {
-            this.balanceDialog = false;
-        },
-    },
-    mounted() {
-        if (JSON.parse(this.$route?.query?.mobile || 'false')) this.actionDialog = true;
-    },
-    // updated() {
-    //   console.log('updated')
-    //   if (JSON.parse(this.$route.query.mobile)) this.actionDialog = true
-    // },
+            const actionDate = dayjs(action.date).format('YYYY-MM-DD');
+
+            if (!result[actionDate]) {
+                result[actionDate] = getEmptyDate(actionDate);
+            }
+
+            result[actionDate].actions.push(action);
+        });
+
+    return Object.entries(result)
+        .sort(([a], [b]) => new Date(b) - new Date(a))
+        .map(item => item[1]);
+});
+const isCheckedBalance = computed(() => {
+    return store.getters.getData('config')?.checking_date;
+});
+const currentBalance = computed(() => {
+    const config = new Config();
+    return config.getCurrent();
+});
+
+const getActionClass = category_id => {
+    let status = getEntityField(categoriesStored.value, category_id, 'status');
+    let type = getEntityField(categoriesStored.value, category_id, 'type');
+    return status + ' ' + type;
 };
+const openActionDialog = () => {
+    actionDialog.value = true;
+};
+const callEditAction = (action, isMobile = false) => {
+    router.push({
+        path: '/actions',
+        query: {
+            ...action,
+            isEdit: true,
+        },
+        replace: true,
+    });
+    isEditMode.value = true;
+    if (isMobile) actionDialog.value = true;
+};
+const handleCancelAction = () => {
+    actionDialog.value = false;
+    isEditMode.value = false;
+    router.push({
+        path: '/actions',
+        query: {
+            isEdit: false,
+        },
+        replace: true,
+    });
+};
+const openBalanceDialog = () => {
+    balanceDialog.value = true;
+};
+const handleCancelBalance = () => {
+    balanceDialog.value = false;
+};
+
+onMounted(() => {
+    const route = useRoute();
+    if (JSON.parse(route?.query?.mobile || 'false')) actionDialog.value = true;
+});
 </script>
 <style scoped>
 .container {

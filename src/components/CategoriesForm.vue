@@ -44,7 +44,8 @@
             </div>
         </el-form>
         <div class="form-buttons">
-            <el-button
+            <!-- TODO не работает -->
+            <!-- <el-button
                 v-if="isEditMode"
                 @click="processCategory('delete')"
                 type="danger"
@@ -52,7 +53,7 @@
                 round
             >
                 Удалить
-            </el-button>
+            </el-button> -->
             <el-button
                 @click="cancelProcessing"
                 :icon="iconCancel"
@@ -247,8 +248,9 @@ export default {
                 try {
                     const categories = new Categories();
                     let changes;
-                    if (mode === 'delete')
-                        changes = categories.delete(this.newCategory._id, this.newCategory);
+                    if (mode === 'delete') return;
+                    // TODO не работает
+                        // changes = categories.delete(this.newCategory._id, this.newCategory);
                     if (mode === 'change') changes = categories.change(this.newCategory);
                     if (mode === 'add') changes = categories.add(this.newCategory);
                     this.cancelProcessing();

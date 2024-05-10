@@ -11,14 +11,14 @@
                 active-text-color="var(--el-color-primary)"
                 text-color="var(--el-text-color-secondary)"
             >
-                <el-menu-item index="/main">
+                <!-- <el-menu-item index="/main">
                     <div class="menu-item-text">
                         <el-icon :size="24">
                             <House />
                         </el-icon>
                         <span>Главная</span>
                     </div>
-                </el-menu-item>
+                </el-menu-item> -->
                 <el-menu-item index="/actions">
                     <div class="menu-item-text">
                         <el-icon :size="24">
@@ -89,6 +89,7 @@ export default {
     width: 100%;
     display: grid;
     grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     padding-bottom: 4px;
 }
 

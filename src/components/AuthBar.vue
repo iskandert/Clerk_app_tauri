@@ -174,7 +174,8 @@ export default {
                             message: 'Сохранено',
                         });
                         this.$store.dispatch('loginLocal');
-                        this.$router.push('/main');
+                        // this.$router.push('/main');
+                        this.$router.push('/actions');
                     } catch (error) {
                         console.log(error);
                         notifyWrap(error);
