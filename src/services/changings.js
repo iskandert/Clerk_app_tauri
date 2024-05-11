@@ -379,22 +379,54 @@ export class Actions extends Entities {
                 Object.values(categorySums).reduce((sum, curr) => (sum += curr)) /
                 Object.keys(categorySums).length;
             categorySums.average = average;
-            console.log(average);
         });
 
         const sumsSteps = [
-            { sum: 100000, transform: value => value * 0.2 },
-            { sum: 50000, transform: value => value * 0.4 },
-            { sum: 10000, transform: value => value * 2 },
-            { sum: 20000, transform: value => value * 0.6 },
-            { sum: 5000, transform: value => value * 3.6 },
-            { sum: 0, transform: value => value * 6 },
+            {
+                sum: 100000,
+                transformExpense: value => value * 0.1,
+                transformIncome: value => value * 1.1,
+            },
+            {
+                sum: 50000,
+                transformExpense: value => value * 0.2,
+                transformIncome: value => value * 1.1,
+            },
+            {
+                sum: 20000,
+                transformExpense: value => value * 0.3,
+                transformIncome: value => value * 3,
+            },
+            {
+                sum: 10000,
+                transformExpense: value => value * 1,
+                transformIncome: value => value * 2.5,
+            },
+            {
+                sum: 5000,
+                transformExpense: value => value * 1.8,
+                transformIncome: value => value * 2.5,
+            },
+            {
+                sum: 0,
+                transformExpense: value => value * 3,
+                transformIncome: value => value * 3,
+            },
         ];
 
         Object.entries(randomized).forEach(([category_id, actions]) => {
             for (const step of sumsSteps) {
                 if (sums[category_id].average > step.sum) {
-                    actions.forEach(action => (action.sum = step.transform(action.sum)));
+                    const category = this.state.categories.data.find(
+                        ({ _id }) => _id === category_id
+                    );
+                    let transform;
+                    if (category.status === 'expense') {
+                        transform = step.transformExpense;
+                    } else if (category.status === 'income') {
+                        transform = step.transformIncome;
+                    }
+                    actions.forEach(action => (action.sum = transform(action.sum) / 4));
                     return;
                 }
             }
