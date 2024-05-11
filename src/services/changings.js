@@ -296,7 +296,7 @@ export class Actions extends Entities {
 
         if (oldActionDate && now.isAfter(oldActionDate, 'month') && oldActionPlan) {
             oldActionPlan.sum -= +oldAction.sum;
-            if (Math.round(oldActionPlan.sum) <= 0) {
+            if (Math.round(oldActionPlan.sum) <= 0 && newActionPlan._id !== oldActionPlan._id) {
                 plans.delete(oldActionPlan._id);
             } else plans.change(oldActionPlan);
 
