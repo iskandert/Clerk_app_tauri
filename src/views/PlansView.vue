@@ -763,20 +763,17 @@ export default {
                 const correlationDataPrev = [];
                 if (idx) {
                     this.categoriesForCorrelation.forEach(category_id => {
-                        correlationDataCurr.push(this.plansMatrix[date][category_id]?.sum || 0);
+                        correlationDataCurr.push(this.plansMatrix[date]?.[category_id]?.sum || 0);
                         correlationDataPrev.push(
-                            this.plansMatrix[dates[idx - 1]][category_id]?.sum || 0
+                            this.plansMatrix[dates[idx - 1]]?.[category_id]?.sum || 0
                         );
                     });
 
-                    const corr = getPearsonCorrelation(
-                        correlationDataCurr,
-                        correlationDataPrev
-                    );
+                    const corr = getPearsonCorrelation(correlationDataCurr, correlationDataPrev);
                     correlations[date] = {
                         ...corr,
                         k: +corr.k.toFixed(2),
-                    }
+                    };
                 }
             });
 
