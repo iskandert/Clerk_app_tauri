@@ -200,6 +200,7 @@ const getLinearRegression = (coordsList, pKoef) => {
 };
 
 export {
+    getIsNormalDistribution,
     getStandardDeviation,
     getIdsInNormalDistribution,
     getPearsonCorrelation,

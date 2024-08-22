@@ -49,7 +49,7 @@
             <span class="left_part">
                 Made by
                 <el-link
-                    target="_blank"
+                    target="_system"
                     href="https://github.com/iskandert"
                     >@iskandert</el-link
                 >

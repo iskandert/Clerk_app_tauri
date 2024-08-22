@@ -10,12 +10,23 @@
       </el-button>
     </slot> -->
         <slot name="signIn">
-            <el-button
-                size="large"
-                @click="handleUploadClick"
-            >
-                Загрузить файл данных
-            </el-button>
+            <div class="button-wrapper">
+                <el-button
+                    size="large"
+                    type="primary"
+                    @click="null"
+                    >
+                    Создать новый бюджет
+                </el-button>
+                <el-button
+                    size="large"
+                    type="primary"
+                    plain
+                    @click="handleUploadClick"
+                >
+                    Загрузить файл бюджета
+                </el-button>
+            </div>
         </slot>
     </div>
     <div
@@ -39,6 +50,13 @@
 .sign-in,
 .sign-out {
     display: inline-block;
+}
+.button-wrapper {
+    display: grid;
+    gap: 8px;
+}
+.button-wrapper>.el-button {
+    margin: 0;
 }
 </style>
 <script>
