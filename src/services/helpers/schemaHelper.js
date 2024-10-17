@@ -1,4 +1,5 @@
 import { categoryStatusEnum, categoryTypeEnum } from '../constants';
+import formatHelper from './formatHelper';
 import typeHelper from './typeHelper';
 
 function checkFields(data, fields) {
@@ -46,7 +47,9 @@ export default {
             _id: typeHelper.getIsString,
             category_id: typeHelper.getIsString,
             sum: typeHelper.getIsPositiveNumber,
-            date: typeHelper.getIsISOYearMonthString,
+            date: value => {
+                return typeHelper.getIsISOYearMonthString(value) && formatHelper.getISOYearMonthString() <= value;
+            },
             comment: value => typeHelper.getIsString(value) || typeHelper.getIsNull(value),
             _updatedAt: typeHelper.getIsISORawDateString,
         },
@@ -58,22 +61,22 @@ export default {
     check: {
         validator: {
             date: typeHelper.getIsISODateString,
-            balance_sum: typeHelper.getIsNumber,
+            default_sum: typeHelper.getIsNumber,
             savings_sum: typeHelper.getIsNumber,
             _updatedAt: typeHelper.getIsISORawDateString,
         },
-        editableFields: ['date', 'balance_sum', 'savings_sum'],
+        editableFields: ['date', 'default_sum', 'savings_sum'],
         checkEditableFields(data) {
             return checkFields.call(this, data, this.editableFields);
         },
     },
     config: {
         validator: {
-            start_balance_sum: typeHelper.getIsNumber,
+            start_default_sum: typeHelper.getIsNumber,
             start_savings_sum: typeHelper.getIsNumber,
             field: typeHelper.getIsString,
         },
-        startFields: ['start_balance_sum', 'start_savings_sum'],
+        startFields: ['start_default_sum', 'start_savings_sum'],
         checkStartFields(data) {
             return checkFields.call(data, this, this.startFields);
         },

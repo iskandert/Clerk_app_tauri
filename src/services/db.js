@@ -5,6 +5,7 @@ import errorHelper from './helpers/errorHelper';
 import schemaHelper from './helpers/schemaHelper';
 import { categoryStatusEnum, categoryTypeEnum } from './constants';
 import formatHelper from './helpers/formatHelper';
+import dayjs from 'dayjs';
 
 let db = null;
 
@@ -20,12 +21,13 @@ const CONFIG_STORE_NAME = 'config';
 
 const CATEGORY_ID_INDEX = 'category_id';
 const DATE_INDEX = 'date';
-const DATE_AND_CATEGORY_ID_INDEX = 'date_and_category_id';
+const CATEGORY_ID_AND_DATE_INDEX = 'category_id_and_date';
 const NAME_INDEX = 'name';
 const STATUS_INDEX = 'status';
 const TYPE_INDEX = 'type';
 const IS_ACCOUNTED_INDEX = 'isAccounted';
 const IS_ACCOUNTED_STATUS_AND_TYPE_INDEX = 'isAccounted_and_status_and_type';
+const STATUS_AND_TYPE_INDEX = 'status_and_type';
 const STATUS_AND_TYPE_AND_NAME_INDEX = 'status_and_type_and_name';
 
 const READWRITE = 'readwrite';
@@ -46,15 +48,16 @@ const initDB = async () => {
             categoriesVault.createIndex(TYPE_INDEX, 'type');
             categoriesVault.createIndex(IS_ACCOUNTED_INDEX, '_isAccounted');
             categoriesVault.createIndex(IS_ACCOUNTED_STATUS_AND_TYPE_INDEX, ['_isAccounted', 'status', 'type']);
+            categoriesVault.createIndex(STATUS_AND_TYPE_INDEX, ['status', 'type']);
             categoriesVault.createIndex(STATUS_AND_TYPE_AND_NAME_INDEX, ['status', 'type', 'name']);
 
             actionsVault.createIndex(CATEGORY_ID_INDEX, 'category_id');
             actionsVault.createIndex(DATE_INDEX, 'date');
-            actionsVault.createIndex(DATE_AND_CATEGORY_ID_INDEX, ['date', 'category_id']);
+            actionsVault.createIndex(CATEGORY_ID_AND_DATE_INDEX, ['category_id', 'date']);
 
             plansVault.createIndex(CATEGORY_ID_INDEX, 'category_id');
             plansVault.createIndex(DATE_INDEX, 'date');
-            plansVault.createIndex(DATE_AND_CATEGORY_ID_INDEX, ['date', 'category_id']);
+            plansVault.createIndex(CATEGORY_ID_AND_DATE_INDEX, ['category_id', 'date']);
         },
         blocked() {
             //
@@ -107,7 +110,7 @@ const getActions = async ({ date, category_id }) => {
 
     try {
         if (date && category_id) {
-            return await db.getAllFromIndex(ACTIONS_STORE_NAME, DATE_AND_CATEGORY_ID_INDEX, [date, category_id]);
+            return await db.getAllFromIndex(ACTIONS_STORE_NAME, CATEGORY_ID_AND_DATE_INDEX, [category_id, date]);
         } else if (date) {
             return await db.getAllFromIndex(ACTIONS_STORE_NAME, DATE_INDEX, date);
         } else {
@@ -115,6 +118,50 @@ const getActions = async ({ date, category_id }) => {
         }
     } catch (error) {
         throw errorHelper.create.internal();
+    }
+};
+
+const getActionsListByMonth = async ISOYearMonth => {
+    if (schemaHelper.plan.validator.date(ISOYearMonth)) {
+        throw errorHelper.create.validation();
+    }
+
+    try {
+        const tx = db.transaction([ACTIONS_STORE_NAME], READONLY);
+        const actionsIndex = tx.objectStore(ACTIONS_STORE_NAME).index(DATE_INDEX);
+
+        const startDate = `${ISOYearMonth}-01`;
+        const endDate = formatHelper.getISODateString(dayjs(startDate).add(1, 'month'));
+
+        const actions = await actionsIndex.getAll(IDBKeyRange.bound(startDate, endDate));
+        const actionsByDates = {};
+
+        actions.forEach(action => {
+            if (!actionsByDates[action.date]) {
+                actionsByDates[action.date] = {
+                    date: action.date,
+                    actions: [],
+                };
+            }
+            actionsByDates[action.date].actions.push(action);
+        });
+
+        for (const date in actionsByDates) {
+            actionsByDates[date].actions.sort(({ _updatedAt: time1 }, { _updatedAt: time2 }) => {
+                if (time1 < time2) return 1;
+                if (time1 > time2) return -1;
+                return 0;
+            });
+        }
+
+        await tx.done;
+        return Object.values(actionsByDates).sort(({ date: date1 }, { date: date2 }) => {
+            if (date1 < date2) return 1;
+            if (date1 > date2) return -1;
+            return 0;
+        });
+    } catch (error) {
+        errorHelper.throwCustomOrInternal(error);
     }
 };
 
@@ -257,14 +304,14 @@ const _setUnaccountedAction = async ({ date, sum, status, type, transaction = nu
 
         const increasingActionCategory = await categoriesStore
             .index(IS_ACCOUNTED_STATUS_AND_TYPE_INDEX)
-            .get([false, oppositeStatus, type]);
+            .get([false, status, type]);
         const decreasingActionCategory = await categoriesStore
             .index(IS_ACCOUNTED_STATUS_AND_TYPE_INDEX)
-            .get([false, status, type]);
+            .get([false, oppositeStatus, type]);
 
-        const actionsIndex = tx.objectStore(ACTIONS_STORE_NAME).index(DATE_AND_CATEGORY_ID_INDEX);
-        const increasingAction = await actionsIndex.get([date, increasingActionCategory._id]);
-        const decreasingAction = await actionsIndex.get([date, decreasingActionCategory._id]);
+        const actionsIndex = tx.objectStore(ACTIONS_STORE_NAME).index(CATEGORY_ID_AND_DATE_INDEX);
+        const increasingAction = await actionsIndex.get([increasingActionCategory._id, date]);
+        const decreasingAction = await actionsIndex.get([decreasingActionCategory._id, date]);
 
         if (decreasingAction) {
             if (decreasingAction.sum > sum) {
@@ -398,7 +445,7 @@ const _updateUnaccountedByAction = async ({ action, isDeleted = false, transacti
         const result = await _setUnaccountedAction({
             date: nextCheck.date,
             sum: action.sum,
-            status: isDeleted ? oppositeStatus : action.status,
+            status: !isDeleted ? oppositeStatus : action.status,
             type: category.type,
             transaction: tx,
         });
@@ -480,43 +527,43 @@ const _updateUnaccountedByDate = async ({ date, transaction = null }) => {
         }
 
         const actions = await actionsDateIndex.getAll(IDBKeyRange.bound(prevCheck.date, nextCheck.date, true, false));
-        const calculatedBalanceSum = prevCheck.balance_sum;
+        const calculatedDefaultSum = prevCheck.default_sum;
         const calculatedSavingsSum = prevCheck.savings_sum;
 
         actions.forEach(({ category_id, sum }) => {
             const { status, type } = categoriesByIds[category_id];
 
             if (status === categoryStatusEnum.EXPENSE) {
-                calculatedBalanceSum -= sum;
+                calculatedDefaultSum -= sum;
                 if (type === categoryTypeEnum.SAVINGS) {
                     calculatedSavingsSum += sum;
                 }
             } else if (status === categoryStatusEnum.INCOME) {
-                calculatedBalanceSum += sum;
+                calculatedDefaultSum += sum;
                 if (type === categoryTypeEnum.SAVINGS) {
                     calculatedSavingsSum -= sum;
                 }
             }
         });
 
-        const balanceDiff = calculatedBalanceSum - nextCheck.balance_sum;
         const savingsDiff = calculatedSavingsSum - nextCheck.savings_sum;
+        const defaultDiff = calculatedDefaultSum - nextCheck.default_sum + savingsDiff;
 
-        if (balanceDiff !== 0) {
-            await _setUnaccountedAction({
-                date: nextCheck.date,
-                sum: Math.abs(balanceDiff),
-                status: balanceDiff > 0 ? categoryStatusEnum.INCOME : categoryStatusEnum.EXPENSE,
-                type: categoryTypeEnum.DEFAULT,
-                transaction: tx,
-            });
-        }
         if (savingsDiff !== 0) {
             await _setUnaccountedAction({
                 date: nextCheck.date,
                 sum: Math.abs(savingsDiff),
                 status: savingsDiff > 0 ? categoryStatusEnum.EXPENSE : categoryStatusEnum.INCOME,
                 type: categoryTypeEnum.SAVINGS,
+                transaction: tx,
+            });
+        }
+        if (defaultDiff !== 0) {
+            await _setUnaccountedAction({
+                date: nextCheck.date,
+                sum: Math.abs(defaultDiff),
+                status: defaultDiff > 0 ? categoryStatusEnum.INCOME : categoryStatusEnum.EXPENSE,
+                type: categoryTypeEnum.DEFAULT,
                 transaction: tx,
             });
         }
@@ -552,7 +599,7 @@ const _getPlans = async ({ date, category_id, transaction = null }) => {
         const store = tx.objectStore(PLANS_STORE_NAME);
 
         if (date && category_id) {
-            return await store.index(DATE_AND_CATEGORY_ID_INDEX).getAll([date, category_id]);
+            return await store.index(CATEGORY_ID_AND_DATE_INDEX).getAll([category_id, date]);
         } else if (date) {
             return await store.index(DATE_INDEX).getAll(date);
         } else {
@@ -579,7 +626,7 @@ const getPlan = async _id => {
     }
 };
 
-const setPlan = async (data, _id = null) => {
+const setPlan = async (data, _id = null, transaction = null) => {
     if (!schemaHelper.plan.checkEditableFields(data) || (_id && !schemaHelper.plan.validator._id(_id))) {
         throw errorHelper.create.validation();
     }
@@ -593,6 +640,8 @@ const setPlan = async (data, _id = null) => {
             oldRecord = await store.get(_id);
             if (!oldRecord) {
                 throw errorHelper.create.notFound();
+            } else if (!schemaHelper.plan.validator.date(oldRecord.date)) {
+                throw errorHelper.create.validation();
             } else {
                 const categoryRecord = await _getCategory({ _id: oldRecord.category_id, transaction: tx });
                 throwOnNotEditable(categoryRecord);
@@ -604,7 +653,55 @@ const setPlan = async (data, _id = null) => {
         }
 
         const record = await _setPlan({ data, _id, transaction: tx });
+        if (!transaction) {
+            await tx.done;
+        }
         return record;
+    } catch (error) {
+        errorHelper.throwCustomOrInternal(error);
+    }
+};
+
+const setSamePlans = async (data = null, _id = null, endDate = null, transaction = null) => {
+    if (
+        (!data && (!_id || !endDate)) ||
+        (data && !schemaHelper.plan.checkEditableFields(data)) ||
+        (endDate && (!schemaHelper.plan.validator.date(endDate) || data.date >= endDate))
+    ) {
+        throw errorHelper.create.validation();
+    }
+
+    try {
+        const tx = transaction || db.transaction([PLANS_STORE_NAME, CATEGORIES_STORE_NAME], READWRITE);
+
+        let record;
+        if (data) {
+            record = await setPlan(data, _id, tx);
+        } else {
+            record = await getPlan(_id);
+        }
+
+        const dates = [];
+        let currentDate = dayjs(record.date);
+        do {
+            currentDate = currentDate.add(1, 'month');
+            dates.push(formatHelper.getISOYearMonthString(currentDate));
+        } while (currentDate.isBefore(endDate, 'month'));
+
+        await Promise.all(
+            dates.map(async date => {
+                await _setPlan({
+                    data: {
+                        ...record,
+                        date,
+                    },
+                    transaction: tx,
+                });
+            })
+        );
+        if (!transaction) {
+            await tx.done;
+        }
     } catch (error) {
         errorHelper.throwCustomOrInternal(error);
     }
@@ -629,12 +726,99 @@ const _setPlan = async ({ data, _id = null, transaction = null }) => {
 
     try {
         const tx = transaction || db.transaction([PLANS_STORE_NAME], READWRITE);
+        const store = tx.objectStore(PLANS_STORE_NAME);
 
-        await tx.objectStore(PLANS_STORE_NAME).put(record);
+        const samePlans = (
+            await store.index(CATEGORY_ID_AND_DATE_INDEX).getAll([record.category_id, record.date])
+        ).filter(({ _id }) => _id !== record._id);
+
+        for (plan of samePlans) {
+            await store.delete(plan._id);
+        }
+
+        await store.put(record);
         if (!transaction) {
             await tx.done;
         }
         return record;
+    } catch (error) {
+        errorHelper.throwCustomOrInternal(error);
+    }
+};
+
+const extendPlans = async (date, endDate = null) => {
+    if (!typeHelper.getIsISOYearMonthString(date) || (endDate && !schemaHelper.plan.validator.date(endDate))) {
+        throw errorHelper.create.validation();
+    }
+
+    try {
+        const tx = db.transaction([PLANS_STORE_NAME, CATEGORIES_STORE_NAME], READWRITE);
+        const plansDateIndex = tx.objectStore(PLANS_STORE_NAME).index(DATE_INDEX);
+        const categoriesStore = tx.objectStore(CATEGORIES_STORE_NAME);
+
+        const categories = await categoriesStore.getAll();
+        const categoriesByIds = categories.reduce((acc, curr) => {
+            acc[curr._id] = curr;
+            return acc;
+        }, {});
+
+        const plans = await plansDateIndex.getAll(date);
+        const planIdsToExtend = [];
+        plans.forEach(({ category_id, _id }) => {
+            const { _isEditable } = categoriesByIds[category_id];
+
+            if (_isEditable) {
+                planIdsToExtend.push(_id);
+            }
+        });
+
+        await Promise.all(
+            planIdsToExtend.map(async _id => {
+                await setSamePlans(null, _id, endDate);
+            })
+        );
+        await tx.done;
+    } catch (error) {
+        errorHelper.throwCustomOrInternal(error);
+    }
+};
+
+const deletePlans = async (date, endDate, categoryIds) => {
+    if (
+        !schemaHelper.plan.validator.date(date) ||
+        !schemaHelper.plan.validator.date(endDate) ||
+        !(date < endDate) ||
+        !categoryIds?.length ||
+        !categoryIds.every(_id => schemaHelper.category.validator._id(_id))
+    ) {
+        throw errorHelper.create.validation();
+    }
+
+    try {
+        const tx = db.transaction([PLANS_STORE_NAME, CATEGORIES_STORE_NAME], READWRITE);
+        const plansIndex = tx.objectStore(PLANS_STORE_NAME).index(CATEGORY_ID_AND_DATE_INDEX);
+        const categoriesStore = tx.objectStore(CATEGORIES_STORE_NAME);
+
+        const categories = (await categoriesStore.getAll()).filter(({ _id }) => categoryIds.includes(_id));
+        if (categories.some(({ _isEditable }) => !_isEditable)) {
+            throw errorHelper.create.validation();
+        }
+
+        const planIdsToDelete = [];
+        await Promise.all(
+            categories.map(async ({ _id }) => {
+                const plans = await plansIndex.getAll(IDBKeyRange.bound([_id, date], [_id, endDate]));
+                plans.forEach(({ _id }) => planIdsToDelete.push(_id));
+            })
+        );
+
+        await Promise.all(
+            planIdsToDelete.map(async _id => {
+                await _deletePlan({ _id, transaction: tx });
+            })
+        );
+
+        await tx.done;
     } catch (error) {
         errorHelper.throwCustomOrInternal(error);
     }
@@ -646,7 +830,7 @@ const deletePlan = async _id => {
     }
 
     try {
-        const tx = transaction || db.transaction([PLANS_STORE_NAME, CATEGORIES_STORE_NAME], READWRITE);
+        const tx = db.transaction([PLANS_STORE_NAME, CATEGORIES_STORE_NAME], READWRITE);
         const store = tx.objectStore(PLANS_STORE_NAME);
 
         const record = await store.get(_id);
@@ -662,6 +846,7 @@ const deletePlan = async _id => {
         }
 
         await _deletePlan({ _id, transaction: tx });
+        await tx.done;
     } catch (error) {
         errorHelper.throwCustomOrInternal(error);
     }
@@ -678,6 +863,58 @@ const _deletePlan = async ({ _id, transaction = null }) => {
         if (!transaction) {
             await tx.done;
         }
+    } catch (error) {
+        errorHelper.throwCustomOrInternal(error);
+    }
+};
+
+const recalcPlansOfCurrentMonth = async () => {};
+
+const recalcPlansOfMonth = async date => {
+    if (!typeHelper.getIsISOYearMonthString(date)) {
+        throw errorHelper.create.validation();
+    }
+
+    try {
+        const tx = db.transaction([PLANS_STORE_NAME, ACTIONS_STORE_NAME], READWRITE);
+        const plansDateIndex = tx.objectStore(PLANS_STORE_NAME).index(DATE_INDEX);
+        const actionsDateIndex = tx.objectStore(ACTIONS_STORE_NAME).index(DATE_INDEX);
+        const actions = await actionsDateIndex.getAll(
+            IDBKeyRange.bound(
+                `${date}-01`,
+                formatHelper.getISODateString(dayjs(date).date(1).add(1, 'month').subtract(1, 'day'))
+            )
+        );
+        const actionsSum = {};
+
+        actions.forEach(({ sum, category_id }) => {
+            if (!actionsSum[category_id]) {
+                actionsSum[category_id] = 0;
+            }
+
+            actionsSum[category_id] += sum;
+        });
+
+        const plans = await plansDateIndex.getAll(date);
+
+        await Promise.all(
+            plans.map(async plan => {
+                if (!actionsSum[plan.category_id]) {
+                    await _deletePlan({ _id: plan._id, transaction: tx });
+                } else {
+                    await _setPlan({
+                        data: {
+                            ...plan,
+                            sum: actionsSum[plan.category_id],
+                        },
+                        _id: plan._id,
+                        transaction: tx,
+                    });
+                }
+            })
+        );
+
+        await tx.done;
     } catch (error) {
         errorHelper.throwCustomOrInternal(error);
     }
@@ -773,6 +1010,45 @@ const _updatePlanByAction = async ({ action, isDeleted, transaction = null }) =>
     }
 };
 
+const getPlansMatrix = async () => {
+    try {
+        const tx = db.transaction([CATEGORIES_STORE_NAME, PLANS_STORE_NAME], READONLY);
+        const categoriesStore = tx.objectStore(CATEGORIES_STORE_NAME);
+        const plansStore = tx.objectStore(PLANS_STORE_NAME);
+
+        const categories = await categoriesStore.getAll();
+        const categoriesByIds = categories.reduce((acc, curr) => {
+            acc[curr._id] = curr;
+            return acc;
+        }, {});
+
+        const matrix = {};
+        const plans = await plansStore.getAll();
+        plans.forEach(plan => {
+            if (!matrix[plan.date]) {
+                matrix[plan.date] = {
+                    incomes: 0,
+                    expenses: 0,
+                    byCategoryId: {},
+                };
+            }
+            matrix[plan.date].byCategoryId[plan.category_id] = plan;
+
+            const { status } = categoriesByIds[plan.category_id];
+            if (status === categoryStatusEnum.INCOME) {
+                matrix[plan.date].incomes += plan.sum;
+            } else if (status === categoryStatusEnum.EXPENSE) {
+                matrix[plan.date].expenses += plan.sum;
+            }
+        });
+
+        await tx.done;
+        return matrix;
+    } catch (error) {
+        errorHelper.throwCustomOrInternal(error);
+    }
+};
+
 // --------------- CATEGORIES -----------------
 // API tasks:
 // [x] get simple category (by _id)
@@ -808,6 +1084,27 @@ const getCategories = async ({ status, type, name }) => {
         }
     } catch (error) {
         throw errorHelper.create.internal();
+    }
+};
+
+const getCategoriesList = async () => {
+    try {
+        const tx = db.transaction([CATEGORIES_STORE_NAME], READONLY);
+        const categoriesIndex = tx.objectStore(CATEGORIES_STORE_NAME).index(STATUS_AND_TYPE_INDEX);
+
+        const result = {};
+        for (const status of Object.values(categoryStatusEnum)) {
+            result[status] = {};
+            for (const type of Object.values(categoryTypeEnum)) {
+                const categories = await categoriesIndex.getAll([status, type]);
+                result[status][type] = categories.sort((categA, categB) => categA.name.localeCompare(categB.name));
+            }
+        }
+
+        await tx.done;
+        return result;
+    } catch (error) {
+        errorHelper.throwCustomOrInternal(error);
     }
 };
 
@@ -1221,7 +1518,7 @@ const _updateConfigStart = async ({ firstCheck, transaction = null }) => {
         }, {});
 
         const data = {
-            start_balance_sum: firstCheck.balance_sum,
+            start_default_sum: firstCheck.default_sum,
             start_savings_sum: firstCheck.savings_sum,
         };
 
@@ -1229,12 +1526,12 @@ const _updateConfigStart = async ({ firstCheck, transaction = null }) => {
             const { status, type } = categoriesByIds[category_id];
 
             if (status === categoryStatusEnum.EXPENSE) {
-                data.start_balance_sum += sum;
+                data.start_default_sum += sum;
                 if (type === categoryTypeEnum.SAVINGS) {
                     data.start_savings_sum -= sum;
                 }
             } else if (status === categoryStatusEnum.INCOME) {
-                data.start_balance_sum -= sum;
+                data.start_default_sum -= sum;
                 if (type === categoryTypeEnum.SAVINGS) {
                     data.start_savings_sum += sum;
                 }
@@ -1312,10 +1609,110 @@ const _resetConfigStart = async ({ transaction = null }) => {
     }
 };
 
+const getCurrentBalance = async () => {
+    const result = { default: 0, savings: 0 };
+
+    try {
+        const tx = db.transaction(db.objectStoreNames, READONLY);
+        const categoriesStore = tx.objectStore(CATEGORIES_STORE_NAME);
+        const plansDateIndex = tx.objectStore(PLANS_STORE_NAME).index(DATE_INDEX);
+        const actionsDateIndex = tx.objectStore(ACTIONS_STORE_NAME).index(DATE_INDEX);
+
+        const startBalance = await _getConfigStart({ transaction: tx });
+        result.default = startBalance.start_default_sum;
+        result.savings = startBalance.start_savings_sum;
+
+        const categories = await categoriesStore.getAll();
+        const categoriesByIds = categories.reduce((acc, curr) => {
+            acc[curr._id] = curr;
+            return acc;
+        }, {});
+        const prevMonthsPlans = await plansDateIndex.getAll(
+            IDBKeyRange.upperBound(formatHelper.getISOYearMonthString(), true)
+        );
+        const currMonthActions = await actionsDateIndex.getAll(
+            IDBKeyRange.bound(`${formatHelper.getISOYearMonthString()}-01`, formatHelper.getISODateString())
+        );
+
+        [...prevMonthsPlans, ...currMonthActions].forEach(({ category_id, sum }) => {
+            const { status, type } = categoriesByIds[category_id];
+            const isExpense = status === categoryStatusEnum.EXPENSE;
+            const isSavings = type === categoryTypeEnum.SAVINGS;
+
+            result.default += isExpense ? -sum : sum;
+            if (isSavings) {
+                result.savings += isExpense ? sum : -sum;
+            }
+        });
+
+        await tx.done;
+        return result;
+    } catch (error) {
+        errorHelper.throwCustomOrInternal(error);
+    }
+};
+
+const getBalanceDynamic = async () => {
+    try {
+        const tx = db.transaction(db.objectStoreNames, READONLY);
+        const categoriesStore = tx.objectStore(CATEGORIES_STORE_NAME);
+        const plansDateIndex = tx.objectStore(PLANS_STORE_NAME).index(DATE_INDEX);
+
+        const categories = await categoriesStore.getAll();
+        const categoriesByIds = categories.reduce((acc, curr) => {
+            acc[curr._id] = curr;
+            return acc;
+        }, {});
+
+        const dates = await plansDateIndex.getAllKeys();
+        const startDate = dates[0];
+        const endDate = dates.at(-1);
+
+        const startBalance = await _getConfigStart({ transaction: tx });
+        const balances = [
+            {
+                date: null,
+                default: startBalance.start_default_sum,
+                savings: startBalance.start_savings_sum,
+            },
+        ];
+        let date = startDate;
+        while (date <= endDate) {
+            const prevBalance = balances.at(-1);
+
+            const balance = {
+                date,
+                default: prevBalance.default,
+                savings: prevBalance.savings,
+            };
+
+            const plans = await plansDateIndex.getAll(date);
+            plans.forEach(({ category_id, sum }) => {
+                const { status, type } = categoriesByIds[category_id];
+                const isExpense = status === categoryStatusEnum.EXPENSE;
+                const isSavings = type === categoryTypeEnum.SAVINGS;
+
+                balance.default += isExpense ? -sum : sum;
+                if (isSavings) {
+                    balance.savings += isExpense ? sum : -sum;
+                }
+            });
+
+            balances.push(balance);
+            date = formatHelper.getISOYearMonthString(dayjs(`${date}-01`).add(1, 'month'));
+        }
+
+        await tx.done;
+        return balances;
+    } catch (error) {
+        errorHelper.throwCustomOrInternal(error);
+    }
+};
+
 // TODO
-// unaccounted logic
-// other complex methods
-// logic for first-time checking
+// other complex methods (current balance, balance dynamic, plans matrix, categories list, actions list, plans table methods)
+// logic for first-time checking (past plans)
+// logic for empty init
 // logic for data parsing
 // logic for data saving
 
