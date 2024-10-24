@@ -78,7 +78,7 @@ export default {
         },
         startFields: ['start_default_sum', 'start_savings_sum'],
         checkStartFields(data) {
-            return checkFields.call(data, this, this.startFields);
+            return checkFields.call(this, data, this.startFields);
         },
     },
 };

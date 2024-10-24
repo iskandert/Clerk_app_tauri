@@ -6,56 +6,50 @@ import schemaHelper from './helpers/schemaHelper';
 import { categoryStatusEnum, categoryTypeEnum } from './constants';
 import formatHelper from './helpers/formatHelper';
 import dayjs from 'dayjs';
+import typeHelper from './helpers/typeHelper';
+import { categoryAccountedNames, categoryUnaccountedNames, dbIndexEnum, dbSettings, dbStoreEnum } from './db/config';
+import { transformData } from './db/transform';
+import { getDBInstanse, setDBInstanse } from './db/instance';
 
-let db = null;
+const { DB_NAME, DB_VERSION } = dbSettings;
 
-const DB_NAME = 'clerk-app';
-const DB_VERSION = 1;
+const {
+    //
+    CATEGORIES_STORE_NAME,
+    ACTIONS_STORE_NAME,
+    PLANS_STORE_NAME,
+    CHECKS_STORE_NAME,
+    CONFIG_STORE_NAME,
+} = dbStoreEnum;
 
-// const TABLES_STORE_NAME = 'tables';
-const CATEGORIES_STORE_NAME = 'categories';
-const ACTIONS_STORE_NAME = 'actions';
-const PLANS_STORE_NAME = 'plans';
-const CHECKS_STORE_NAME = 'checks';
-const CONFIG_STORE_NAME = 'config';
-
-const CATEGORY_ID_INDEX = 'category_id';
-const DATE_INDEX = 'date';
-const CATEGORY_ID_AND_DATE_INDEX = 'category_id_and_date';
-const NAME_INDEX = 'name';
-const STATUS_INDEX = 'status';
-const TYPE_INDEX = 'type';
-const IS_ACCOUNTED_INDEX = 'isAccounted';
-const IS_ACCOUNTED_STATUS_AND_TYPE_INDEX = 'isAccounted_and_status_and_type';
-const STATUS_AND_TYPE_INDEX = 'status_and_type';
-const STATUS_AND_TYPE_AND_NAME_INDEX = 'status_and_type_and_name';
+const {
+    //
+    DATE_INDEX,
+    CATEGORY_ID_AND_DATE_INDEX,
+    IS_ACCOUNTED_INDEX,
+    IS_ACCOUNTED_AND_STATUS_AND_TYPE_INDEX,
+    STATUS_AND_TYPE_INDEX,
+} = dbIndexEnum;
 
 const READWRITE = 'readwrite';
 const READONLY = 'readonly';
 
 const initDB = async () => {
-    db = await openDB(DB_NAME, DB_VERSION, {
+    const db = await openDB(DB_NAME, DB_VERSION, {
         upgrade(db) {
-            // const tablesVault = db.createObjectStore(TABLES_STORE_NAME, { keyPath: '_id' });
             const categoriesVault = db.createObjectStore(CATEGORIES_STORE_NAME, { keyPath: '_id' });
             const actionsVault = db.createObjectStore(ACTIONS_STORE_NAME, { keyPath: '_id' });
             const plansVault = db.createObjectStore(PLANS_STORE_NAME, { keyPath: '_id' });
             db.createObjectStore(CHECKS_STORE_NAME, { keyPath: 'date' });
             db.createObjectStore(CONFIG_STORE_NAME);
 
-            categoriesVault.createIndex(NAME_INDEX, 'name');
-            categoriesVault.createIndex(STATUS_INDEX, 'status');
-            categoriesVault.createIndex(TYPE_INDEX, 'type');
             categoriesVault.createIndex(IS_ACCOUNTED_INDEX, '_isAccounted');
-            categoriesVault.createIndex(IS_ACCOUNTED_STATUS_AND_TYPE_INDEX, ['_isAccounted', 'status', 'type']);
+            categoriesVault.createIndex(IS_ACCOUNTED_AND_STATUS_AND_TYPE_INDEX, ['_isAccounted', 'status', 'type']);
             categoriesVault.createIndex(STATUS_AND_TYPE_INDEX, ['status', 'type']);
-            categoriesVault.createIndex(STATUS_AND_TYPE_AND_NAME_INDEX, ['status', 'type', 'name']);
 
-            actionsVault.createIndex(CATEGORY_ID_INDEX, 'category_id');
             actionsVault.createIndex(DATE_INDEX, 'date');
             actionsVault.createIndex(CATEGORY_ID_AND_DATE_INDEX, ['category_id', 'date']);
 
-            plansVault.createIndex(CATEGORY_ID_INDEX, 'category_id');
             plansVault.createIndex(DATE_INDEX, 'date');
             plansVault.createIndex(CATEGORY_ID_AND_DATE_INDEX, ['category_id', 'date']);
         },
@@ -69,11 +63,13 @@ const initDB = async () => {
             //
         },
     });
+
+    setDBInstanse(db);
 };
 
 const closeDB = async () => {
     try {
-        db.close();
+        getDBInstanse().close();
     } catch (error) {
         //
     }
@@ -92,34 +88,135 @@ const destroyDB = async () => {
     }
 };
 
-// --------------- ACTIONS -----------------
-// API tasks:
-// [x] get simple action (by _id)
-// [x] set simple action (by data and _id)
-// [ ] get array (by dates, filtered by month) of arrays (by _updatedAt) of actions
-// [ ] get matrix (of actions or of reduced action sums (empty is 0)) (by category_ids x by months)
-
-const getActions = async ({ date, category_id }) => {
-    if (
-        (!date && !category_id) ||
-        (date && !schemaHelper.action.validator.date(date)) ||
-        (category_id && !schemaHelper.action.validator.category_id(category_id))
-    ) {
-        throw errorHelper.create.validation();
-    }
-
+const fillDB = async data => {
     try {
-        if (date && category_id) {
-            return await db.getAllFromIndex(ACTIONS_STORE_NAME, CATEGORY_ID_AND_DATE_INDEX, [category_id, date]);
-        } else if (date) {
-            return await db.getAllFromIndex(ACTIONS_STORE_NAME, DATE_INDEX, date);
-        } else {
-            return await db.getAllFromIndex(ACTIONS_STORE_NAME, CATEGORY_ID_INDEX, category_id);
+        const db = getDBInstanse();
+        const tx = db.transaction(db.objectStoreNames, READWRITE);
+
+        if (!data) {
+            await _setInitialCategories({ transaction: tx });
+            await _setInitialConfigStart({ transaction: tx });
+            return;
         }
+
+        const isV0 = !data.version;
+        data = transformData(data);
+
+        if (
+            !Array.isArray(data[CATEGORIES_STORE_NAME]) ||
+            !Array.isArray(data[ACTIONS_STORE_NAME]) ||
+            !Array.isArray(data[PLANS_STORE_NAME]) ||
+            !Array.isArray(data[CHECKS_STORE_NAME]) ||
+            !typeHelper.getIsObject(data[CONFIG_STORE_NAME])
+        ) {
+            throw errorHelper.create.validation();
+        }
+
+        await Promise.all(
+            data[CATEGORIES_STORE_NAME].map(async data => {
+                return await _setCategory({
+                    data,
+                    _id: data._id,
+                    _isAccounted: data._isAccounted,
+                    needUpdateTime: false,
+                    transaction: tx,
+                });
+            })
+        );
+
+        await Promise.all(
+            data[ACTIONS_STORE_NAME].map(async data => {
+                return await _setAction({
+                    data,
+                    _id: data._id,
+                    needUpdateTime: false,
+                    transaction: tx,
+                });
+            })
+        );
+
+        await Promise.all(
+            data[PLANS_STORE_NAME].map(async data => {
+                return await _setPlan({
+                    data,
+                    _id: data._id,
+                    needUpdateTime: false,
+                    transaction: tx,
+                });
+            })
+        );
+
+        await Promise.all(
+            data[CHECKS_STORE_NAME].map(async data => {
+                return await _setCheck({
+                    data,
+                    _id: data._id,
+                    needUpdateTime: false,
+                    transaction: tx,
+                });
+            })
+        );
+
+        await Promise.all(
+            Object.entries(data[CONFIG_STORE_NAME]).map(async ([key, value]) => {
+                return await _setConfigField({
+                    key,
+                    value,
+                    transaction: tx,
+                });
+            })
+        );
+
+        if (isV0) {
+            const firstCheck = await _getCheckFirst({ transaction: tx });
+            if (firstCheck) {
+                await _updateConfigStart({ firstCheck, transaction: tx });
+            }
+        }
+
+        await tx.done;
     } catch (error) {
-        throw errorHelper.create.internal();
+        errorHelper.throwCustomOrInternal(error);
     }
 };
+
+const dumpDB = async () => {
+    try {
+        const db = getDBInstanse();
+        const tx = db.transaction(db.objectStoreNames, READWRITE);
+
+        const categoriesStore = tx.objectStore(CATEGORIES_STORE_NAME);
+        const actionsStore = tx.objectStore(ACTIONS_STORE_NAME);
+        const plansStore = tx.objectStore(PLANS_STORE_NAME);
+        const checksStore = tx.objectStore(CHECKS_STORE_NAME);
+        const configStore = tx.objectStore(CONFIG_STORE_NAME);
+
+        const result = {
+            version: DB_VERSION,
+        };
+
+        result[CATEGORIES_STORE_NAME] = await categoriesStore.getAll();
+        result[ACTIONS_STORE_NAME] = await actionsStore.getAll();
+        result[PLANS_STORE_NAME] = await plansStore.getAll();
+        result[CHECKS_STORE_NAME] = await checksStore.getAll();
+
+        const configKeys = await configStore.getAllKeys();
+        const configRecords = await Promise.all(
+            configKeys.map(async key => {
+                const value = await configStore.get(key);
+                return [key, value];
+            })
+        );
+        result[CONFIG_STORE_NAME] = Object.fromEntries(configRecords);
+
+        await tx.done;
+        return result;
+    } catch (error) {
+        errorHelper.throwCustomOrInternal(error);
+    }
+};
+
+// --------------- ACTIONS -----------------
 
 const getActionsListByMonth = async ISOYearMonth => {
     if (schemaHelper.plan.validator.date(ISOYearMonth)) {
@@ -127,6 +224,7 @@ const getActionsListByMonth = async ISOYearMonth => {
     }
 
     try {
+        const db = getDBInstanse();
         const tx = db.transaction([ACTIONS_STORE_NAME], READONLY);
         const actionsIndex = tx.objectStore(ACTIONS_STORE_NAME).index(DATE_INDEX);
 
@@ -171,6 +269,7 @@ const getAction = async _id => {
     }
 
     try {
+        const db = getDBInstanse();
         const record = await db.get(ACTIONS_STORE_NAME, _id);
         if (!record) {
             throw errorHelper.create.notFound();
@@ -187,7 +286,8 @@ const setAction = async (data, _id = null) => {
     }
 
     try {
-        const tx = transaction || db.transaction(db.objectStoreNames, READWRITE);
+        const db = getDBInstanse();
+        const tx = db.transaction(db.objectStoreNames, READWRITE);
         const store = tx.objectStore(ACTIONS_STORE_NAME);
 
         let oldRecord;
@@ -215,7 +315,7 @@ const setAction = async (data, _id = null) => {
     }
 };
 
-const _setAction = async ({ data, _id = null, transaction = null }) => {
+const _setAction = async ({ data, _id = null, needUpdateTime = true, transaction = null }) => {
     if (!schemaHelper.action.checkEditableFields(data) || (_id && !schemaHelper.action.validator._id(_id))) {
         throw errorHelper.create.validation();
     }
@@ -230,9 +330,16 @@ const _setAction = async ({ data, _id = null, transaction = null }) => {
     } else {
         record._id = uuidv4();
     }
-    record._updatedAt = dayjs().format();
+    if (needUpdateTime || !data._updatedAt) {
+        record._updatedAt = dayjs().format();
+    } else if (dayjs(data._updatedAt).format() === data._updatedAt) {
+        record._updatedAt = data._updatedAt;
+    } else {
+        throw errorHelper.create.validation();
+    }
 
     try {
+        const db = getDBInstanse();
         const tx = transaction || db.transaction([ACTIONS_STORE_NAME], READWRITE);
 
         await tx.objectStore(ACTIONS_STORE_NAME).put(record);
@@ -251,7 +358,8 @@ const deleteAction = async _id => {
     }
 
     try {
-        const tx = transaction || db.transaction(db.objectStoreNames, READWRITE);
+        const db = getDBInstanse();
+        const tx = db.transaction(db.objectStoreNames, READWRITE);
         const store = tx.objectStore(ACTIONS_STORE_NAME);
 
         const record = await store.get(_id);
@@ -275,6 +383,7 @@ const _deleteAction = async ({ _id, transaction = null }) => {
     }
 
     try {
+        const db = getDBInstanse();
         const tx = transaction || db.transaction([ACTIONS_STORE_NAME], READWRITE);
         await tx.objectStore(ACTIONS_STORE_NAME).delete(_id);
         if (!transaction) {
@@ -296,6 +405,7 @@ const _setUnaccountedAction = async ({ date, sum, status, type, transaction = nu
     }
 
     try {
+        const db = getDBInstanse();
         const tx = transaction || db.transaction(db.objectStoreNames, READWRITE);
         const categoriesStore = tx.objectStore(CATEGORIES_STORE_NAME);
 
@@ -303,10 +413,10 @@ const _setUnaccountedAction = async ({ date, sum, status, type, transaction = nu
             status === categoryStatusEnum.EXPENSE ? categoryStatusEnum.INCOME : categoryStatusEnum.EXPENSE;
 
         const increasingActionCategory = await categoriesStore
-            .index(IS_ACCOUNTED_STATUS_AND_TYPE_INDEX)
+            .index(IS_ACCOUNTED_AND_STATUS_AND_TYPE_INDEX)
             .get([false, status, type]);
         const decreasingActionCategory = await categoriesStore
-            .index(IS_ACCOUNTED_STATUS_AND_TYPE_INDEX)
+            .index(IS_ACCOUNTED_AND_STATUS_AND_TYPE_INDEX)
             .get([false, oppositeStatus, type]);
 
         const actionsIndex = tx.objectStore(ACTIONS_STORE_NAME).index(CATEGORY_ID_AND_DATE_INDEX);
@@ -422,6 +532,7 @@ const _updateUnaccountedByAction = async ({ action, isDeleted = false, transacti
     }
 
     try {
+        const db = getDBInstanse();
         const tx = transaction || db.transaction(db.objectStoreNames, READWRITE);
 
         const nextCheck = await _getCheckNext({
@@ -465,6 +576,7 @@ const _deleteUnaccountedByDate = async ({ date, transaction = null }) => {
     }
 
     try {
+        const db = getDBInstanse();
         const tx = transaction || db.transaction(db.objectStoreNames, READWRITE);
 
         const actionsStore = tx.objectStore(ACTIONS_STORE_NAME);
@@ -503,6 +615,7 @@ const _updateUnaccountedByDate = async ({ date, transaction = null }) => {
     }
 
     try {
+        const db = getDBInstanse();
         const tx = transaction || db.transaction(db.objectStoreNames, READWRITE);
 
         const actionsStore = tx.objectStore(ACTIONS_STORE_NAME);
@@ -577,34 +690,18 @@ const _updateUnaccountedByDate = async ({ date, transaction = null }) => {
 };
 
 // --------------- PLANS -----------------
-// API tasks:
-// [x] get simple plan (by _id)
-// [x] set simple plan (by data and _id) (after check _isEditable)
-// [ ] get matrix (of plans (empty is {sum: 0})) (by category_ids x by months)
-// [ ] get total sums (by months)
-// [x] update plan by new action
-// [x] update unaccounted actions
 
 const _getPlans = async ({ date, category_id, transaction = null }) => {
-    if (
-        (!date && !category_id) ||
-        (date && !schemaHelper.plan.validator.date(date)) ||
-        (category_id && !schemaHelper.plan.validator.category_id(category_id))
-    ) {
+    if (!schemaHelper.plan.validator.date(date) || !schemaHelper.plan.validator.category_id(category_id)) {
         throw errorHelper.create.validation();
     }
 
     try {
+        const db = getDBInstanse();
         const tx = transaction || db.transaction([PLANS_STORE_NAME], READONLY);
         const store = tx.objectStore(PLANS_STORE_NAME);
 
-        if (date && category_id) {
-            return await store.index(CATEGORY_ID_AND_DATE_INDEX).getAll([category_id, date]);
-        } else if (date) {
-            return await store.index(DATE_INDEX).getAll(date);
-        } else {
-            return await store.index(CATEGORY_ID_INDEX).getAll(category_id);
-        }
+        return await store.index(CATEGORY_ID_AND_DATE_INDEX).getAll([category_id, date]);
     } catch (error) {
         throw errorHelper.create.internal();
     }
@@ -616,6 +713,7 @@ const getPlan = async _id => {
     }
 
     try {
+        const db = getDBInstanse();
         const record = await db.get(PLANS_STORE_NAME, _id);
         if (!record) {
             throw errorHelper.create.notFound();
@@ -632,6 +730,7 @@ const setPlan = async (data, _id = null, transaction = null) => {
     }
 
     try {
+        const db = getDBInstanse();
         const tx = transaction || db.transaction([PLANS_STORE_NAME, CATEGORIES_STORE_NAME], READWRITE);
         const store = tx.objectStore(PLANS_STORE_NAME);
 
@@ -672,6 +771,7 @@ const setSamePlans = async (data = null, _id = null, endDate = null, transaction
     }
 
     try {
+        const db = getDBInstanse();
         const tx = transaction || db.transaction([PLANS_STORE_NAME, CATEGORIES_STORE_NAME], READWRITE);
 
         let record;
@@ -707,7 +807,7 @@ const setSamePlans = async (data = null, _id = null, endDate = null, transaction
     }
 };
 
-const _setPlan = async ({ data, _id = null, transaction = null }) => {
+const _setPlan = async ({ data, _id = null, needUpdateTime = true, transaction = null }) => {
     if (!schemaHelper.plan.checkEditableFields(data) || (_id && !schemaHelper.plan.validator._id(_id))) {
         throw errorHelper.create.validation();
     }
@@ -722,9 +822,16 @@ const _setPlan = async ({ data, _id = null, transaction = null }) => {
     } else {
         record._id = uuidv4();
     }
-    record._updatedAt = dayjs().format();
+    if (needUpdateTime || !data._updatedAt) {
+        record._updatedAt = dayjs().format();
+    } else if (dayjs(data._updatedAt).format() === data._updatedAt) {
+        record._updatedAt = data._updatedAt;
+    } else {
+        throw errorHelper.create.validation();
+    }
 
     try {
+        const db = getDBInstanse();
         const tx = transaction || db.transaction([PLANS_STORE_NAME], READWRITE);
         const store = tx.objectStore(PLANS_STORE_NAME);
 
@@ -752,6 +859,7 @@ const extendPlans = async (date, endDate = null) => {
     }
 
     try {
+        const db = getDBInstanse();
         const tx = db.transaction([PLANS_STORE_NAME, CATEGORIES_STORE_NAME], READWRITE);
         const plansDateIndex = tx.objectStore(PLANS_STORE_NAME).index(DATE_INDEX);
         const categoriesStore = tx.objectStore(CATEGORIES_STORE_NAME);
@@ -795,6 +903,7 @@ const deletePlans = async (date, endDate, categoryIds) => {
     }
 
     try {
+        const db = getDBInstanse();
         const tx = db.transaction([PLANS_STORE_NAME, CATEGORIES_STORE_NAME], READWRITE);
         const plansIndex = tx.objectStore(PLANS_STORE_NAME).index(CATEGORY_ID_AND_DATE_INDEX);
         const categoriesStore = tx.objectStore(CATEGORIES_STORE_NAME);
@@ -830,6 +939,7 @@ const deletePlan = async _id => {
     }
 
     try {
+        const db = getDBInstanse();
         const tx = db.transaction([PLANS_STORE_NAME, CATEGORIES_STORE_NAME], READWRITE);
         const store = tx.objectStore(PLANS_STORE_NAME);
 
@@ -858,6 +968,7 @@ const _deletePlan = async ({ _id, transaction = null }) => {
     }
 
     try {
+        const db = getDBInstanse();
         const tx = transaction || db.transaction([PLANS_STORE_NAME], READWRITE);
         await tx.objectStore(PLANS_STORE_NAME).delete(_id);
         if (!transaction) {
@@ -868,7 +979,9 @@ const _deletePlan = async ({ _id, transaction = null }) => {
     }
 };
 
-const recalcPlansOfCurrentMonth = async () => {};
+const recalcPlansOfCurrentMonth = async () => {
+    await recalcPlansOfMonth(formatHelper.getISOYearMonthString());
+};
 
 const recalcPlansOfMonth = async date => {
     if (!typeHelper.getIsISOYearMonthString(date)) {
@@ -876,6 +989,7 @@ const recalcPlansOfMonth = async date => {
     }
 
     try {
+        const db = getDBInstanse();
         const tx = db.transaction([PLANS_STORE_NAME, ACTIONS_STORE_NAME], READWRITE);
         const plansDateIndex = tx.objectStore(PLANS_STORE_NAME).index(DATE_INDEX);
         const actionsDateIndex = tx.objectStore(ACTIONS_STORE_NAME).index(DATE_INDEX);
@@ -929,6 +1043,7 @@ const _updateDataByAction = async ({ newAction = null, oldAction = null, transac
     }
 
     try {
+        const db = getDBInstanse();
         const tx = transaction || db.transaction(db.objectStoreNames, READWRITE);
 
         if (oldAction) {
@@ -1012,6 +1127,7 @@ const _updatePlanByAction = async ({ action, isDeleted, transaction = null }) =>
 
 const getPlansMatrix = async () => {
     try {
+        const db = getDBInstanse();
         const tx = db.transaction([CATEGORIES_STORE_NAME, PLANS_STORE_NAME], READONLY);
         const categoriesStore = tx.objectStore(CATEGORIES_STORE_NAME);
         const plansStore = tx.objectStore(PLANS_STORE_NAME);
@@ -1049,46 +1165,42 @@ const getPlansMatrix = async () => {
     }
 };
 
-// --------------- CATEGORIES -----------------
-// API tasks:
-// [x] get simple category (by _id)
-// [-] set simple category (by data and _id) (after check _isEditable)
-// [ ] get object (keys are all combinations of status and type) with arrays (each filtered by key) of categories
-// [ ] create unaccounted plans' categories
-
-const getCategories = async ({ status, type, name }) => {
-    const simpleIndexParamsCount = 1;
-    const complexIndexParamsCount = 3;
-    if (
-        ![simpleIndexParamsCount, complexIndexParamsCount].includes(!!status + !!type + !!name) ||
-        (status && !schemaHelper.category.validator.status(status)) ||
-        (type && !schemaHelper.category.validator.type(type)) ||
-        (name && !schemaHelper.category.validator.name(name))
-    ) {
-        throw errorHelper.create.validation();
-    }
-
+const ensurePastPlans = async () => {
     try {
-        if (status && type && name) {
-            return await db.getAllFromIndex(CATEGORIES_STORE_NAME, STATUS_AND_TYPE_AND_NAME_INDEX, [
-                status,
-                type,
-                name,
-            ]);
-        } else if (status) {
-            return await db.getAllFromIndex(CATEGORIES_STORE_NAME, STATUS_INDEX, status);
-        } else if (type) {
-            return await db.getAllFromIndex(CATEGORIES_STORE_NAME, TYPE_INDEX, type);
-        } else {
-            return await db.getAllFromIndex(CATEGORIES_STORE_NAME, NAME_INDEX, name);
-        }
+        const db = getDBInstanse();
+        const tx = db.transaction([ACTIONS_STORE_NAME, PLANS_STORE_NAME], READWRITE);
+        const plansIndex = tx.objectStore(PLANS_STORE_NAME).index(CATEGORY_ID_AND_DATE_INDEX);
+        const actionsIndex = tx.objectStore(ACTIONS_STORE_NAME).index(CATEGORY_ID_AND_DATE_INDEX);
+
+        const plansKeys = await plansIndex.getAllKeys();
+        await Promise.all(
+            plansKeys.map(async key => {
+                const plan = await plansIndex.get(key);
+                const actions = await actionsIndex.getAll(key);
+                let sum = 0;
+                actions.forEach(action => (sum += action.sum));
+                if (sum !== plan.sum) {
+                    await _setPlan({
+                        data: {
+                            ...plan,
+                            sum,
+                        },
+                        _id: plan._id,
+                        transaction: tx,
+                    });
+                }
+            })
+        );
     } catch (error) {
-        throw errorHelper.create.internal();
+        errorHelper.throwCustomOrInternal(error);
     }
 };
 
+// --------------- CATEGORIES -----------------
+
 const getCategoriesList = async () => {
     try {
+        const db = getDBInstanse();
         const tx = db.transaction([CATEGORIES_STORE_NAME], READONLY);
         const categoriesIndex = tx.objectStore(CATEGORIES_STORE_NAME).index(STATUS_AND_TYPE_INDEX);
 
@@ -1126,6 +1238,7 @@ const getCategory = async _id => {
 
 const _getUnaccountedCategories = async ({ transaction = null }) => {
     try {
+        const db = getDBInstanse();
         const tx = transaction || db.transaction([CATEGORIES_STORE_NAME], READONLY);
         const categoriesAccountedIndex = tx.objectStore(CATEGORIES_STORE_NAME).index(IS_ACCOUNTED_INDEX);
 
@@ -1144,6 +1257,7 @@ const _getCategory = async ({ _id, transaction = null }) => {
     }
 
     try {
+        const db = getDBInstanse();
         const tx = transaction || db.transaction([CATEGORIES_STORE_NAME], READWRITE);
         const record = await tx.objectStore(CATEGORIES_STORE_NAME).get(_id);
 
@@ -1162,6 +1276,7 @@ const setCategory = async (data, _id = null) => {
     }
 
     try {
+        const db = getDBInstanse();
         const tx = transaction || db.transaction([CATEGORIES_STORE_NAME], READWRITE);
 
         if (_id) {
@@ -1191,7 +1306,7 @@ const setCategory = async (data, _id = null) => {
     }
 };
 
-const _setCategory = async ({ data, _id = null, _isAccounted = true, transaction = null }) => {
+const _setCategory = async ({ data, _id = null, _isAccounted = true, needUpdateTime = true, transaction = null }) => {
     if (!schemaHelper.category.checkEditableFields(data) || (_id && !schemaHelper.category.validator._id(_id))) {
         throw errorHelper.create.validation();
     }
@@ -1211,15 +1326,72 @@ const _setCategory = async ({ data, _id = null, _isAccounted = true, transaction
     } else {
         record._isEditable = false;
     }
-    record._updatedAt = dayjs().format();
+    if (needUpdateTime || !data._updatedAt) {
+        record._updatedAt = dayjs().format();
+    } else if (dayjs(data._updatedAt).format() === data._updatedAt) {
+        record._updatedAt = data._updatedAt;
+    } else {
+        throw errorHelper.create.validation();
+    }
 
     try {
+        const db = getDBInstanse();
         const tx = transaction || db.transaction([CATEGORIES_STORE_NAME], READWRITE);
         await tx.objectStore(CATEGORIES_STORE_NAME).put(record);
         if (!transaction) {
             await tx.done;
         }
         return record;
+    } catch (error) {
+        errorHelper.throwCustomOrInternal(error);
+    }
+};
+
+const _setInitialCategories = async ({ transaction = null }) => {
+    try {
+        const db = getDBInstanse();
+        const tx = transaction || db.transaction([CATEGORIES_STORE_NAME], READWRITE);
+        const categoriesStore = tx.objectStore(CATEGORIES_STORE_NAME);
+
+        let categories = await categoriesStore.getAll();
+        if (categories.length) {
+            throw errorHelper.create.validation();
+        }
+
+        const accountedNames = categoryAccountedNames;
+        const unaccountedNames = categoryUnaccountedNames;
+
+        const accountedData = [];
+        const unaccountedData = [];
+        for (const status in accountedNames) {
+            for (const type in accountedNames[status]) {
+                for (const name of accountedNames[status][type]) {
+                    accountedData.push({
+                        status,
+                        type,
+                        name,
+                    });
+                }
+                unaccountedData.push({
+                    status,
+                    type,
+                    name: unaccountedNames[status][type],
+                });
+            }
+        }
+
+        await Promise.all(
+            [
+                ...accountedData.map(data => ({ data, _isAccounted: true })),
+                ...unaccountedData.map(data => ({ data, _isAccounted: false })),
+            ].map(async settings => {
+                await _setCategory({ ...settings, transaction: tx });
+            })
+        );
+
+        if (!transaction) {
+            await tx.done;
+        }
     } catch (error) {
         errorHelper.throwCustomOrInternal(error);
     }
@@ -1232,6 +1404,7 @@ const _setCategory = async ({ data, _id = null, _isAccounted = true, transaction
 //     }
 
 //     try {
+//         const db = getDBInstanse();
 //         const tx = transaction || db.transaction([CATEGORIES_STORE_NAME], READWRITE);
 
 //         const record = await tx.store.get(_id);
@@ -1256,6 +1429,7 @@ const _setCategory = async ({ data, _id = null, _isAccounted = true, transaction
 //     }
 
 //     try {
+//         const db = getDBInstanse();
 //         const tx = transaction || db.transaction([CATEGORIES_STORE_NAME], READWRITE);
 //         await tx.objectStore(CATEGORIES_STORE_NAME).delete(_id);
 //         if (!transaction) {
@@ -1273,14 +1447,10 @@ const throwOnNotEditable = record => {
 };
 
 // --------------- CHECKS -----------------
-// API tasks:
-// [x] get prev check
-// [x] get all checks
-// [x] delete check
-// [x] set simple check (by data)
 
 const _getCheckFirst = async ({ transaction }) => {
     try {
+        const db = getDBInstanse();
         const tx = transaction || db.transaction([CHECKS_STORE_NAME], READONLY);
         const dates = await tx.objectStore(CHECKS_STORE_NAME).getAllKeys();
         if (!dates.length) {
@@ -1296,6 +1466,7 @@ const _getCheckFirst = async ({ transaction }) => {
 
 const _getCheckLast = async ({ transaction }) => {
     try {
+        const db = getDBInstanse();
         const tx = transaction || db.transaction([CHECKS_STORE_NAME], READONLY);
         const dates = await tx.objectStore(CHECKS_STORE_NAME).getAllKeys();
         if (!dates.length) {
@@ -1311,6 +1482,7 @@ const _getCheckLast = async ({ transaction }) => {
 
 const getChecks = async () => {
     try {
+        const db = getDBInstanse();
         const tx = db.transaction([CHECKS_STORE_NAME], READONLY);
         const records = await tx.store.getAll();
         if (!records.length) {
@@ -1344,6 +1516,7 @@ const _getCheck = async ({ date, transaction = null }) => {
     }
 
     try {
+        const db = getDBInstanse();
         const tx = transaction || db.transaction([CHECKS_STORE_NAME], READWRITE);
         const record = await tx.objectStore(CHECKS_STORE_NAME).get(date);
         if (!transaction) {
@@ -1361,6 +1534,7 @@ const _getCheckNext = async ({ date, transaction = null, isIncludeNow = false })
     }
 
     try {
+        const db = getDBInstanse();
         const tx = transaction || db.transaction([CHECKS_STORE_NAME], READONLY);
         const record = await tx.objectStore(CHECKS_STORE_NAME).get(IDBKeyRange.lowerBound(date, !isIncludeNow));
         if (!transaction) {
@@ -1378,6 +1552,7 @@ const _getCheckPrev = async ({ date, transaction }) => {
     }
 
     try {
+        const db = getDBInstanse();
         const tx = transaction || db.transaction([CHECKS_STORE_NAME], READONLY);
         const records = await tx.objectStore(CHECKS_STORE_NAME).getAll(IDBKeyRange.upperBound(date, true));
         if (!transaction) {
@@ -1395,6 +1570,7 @@ const setCheck = async data => {
     }
 
     try {
+        const db = getDBInstanse();
         const tx = db.transaction(db.objectStoreNames, READWRITE);
         const currentCheck = await _setCheck({ data, transaction: tx });
 
@@ -1417,7 +1593,7 @@ const setCheck = async data => {
     }
 };
 
-const _setCheck = async ({ data, transaction = null }) => {
+const _setCheck = async ({ data, needUpdateTime = true, transaction = null }) => {
     if (!schemaHelper.check.checkEditableFields(data)) {
         throw errorHelper.create.validation();
     }
@@ -1427,9 +1603,16 @@ const _setCheck = async ({ data, transaction = null }) => {
         record[field] = data[field];
     });
 
-    record._updatedAt = dayjs().format();
+    if (needUpdateTime || !data._updatedAt) {
+        record._updatedAt = dayjs().format();
+    } else if (dayjs(data._updatedAt).format() === data._updatedAt) {
+        record._updatedAt = data._updatedAt;
+    } else {
+        throw errorHelper.create.validation();
+    }
 
     try {
+        const db = getDBInstanse();
         const tx = transaction || db.transaction([CHECKS_STORE_NAME], READWRITE);
         await tx.objectStore(CHECKS_STORE_NAME).put(record);
         if (!transaction) {
@@ -1447,6 +1630,7 @@ const deleteCheck = async date => {
     }
 
     try {
+        const db = getDBInstanse();
         const tx = transaction || db.transaction(db.objectStoreNames, READWRITE);
         const store = tx.objectStore(CHECKS_STORE_NAME);
         const record = await store.get(date);
@@ -1484,6 +1668,7 @@ const _deleteCheck = async ({ date, transaction = null }) => {
     }
 
     try {
+        const db = getDBInstanse();
         const tx = transaction || db.transaction([CHECKS_STORE_NAME], READWRITE);
         await tx.objectStore(CHECKS_STORE_NAME).delete(date);
         if (!transaction) {
@@ -1495,10 +1680,6 @@ const _deleteCheck = async ({ date, transaction = null }) => {
 };
 
 // --------------- CONFIG -----------------
-// API tasks:
-// [x] set start
-// [x] get start
-// [x] delete start
 
 const _updateConfigStart = async ({ firstCheck, transaction = null }) => {
     if (!schemaHelper.check.checkEditableFields(firstCheck)) {
@@ -1506,6 +1687,7 @@ const _updateConfigStart = async ({ firstCheck, transaction = null }) => {
     }
 
     try {
+        const db = getDBInstanse();
         const tx = transaction || db.transaction(db.objectStoreNames, READWRITE);
         const actionsStore = tx.objectStore(ACTIONS_STORE_NAME);
         const categoriesStore = tx.objectStore(CATEGORIES_STORE_NAME);
@@ -1550,6 +1732,7 @@ const _setConfigStart = async ({ data, transaction = null }) => {
     }
 
     try {
+        const db = getDBInstanse();
         const tx = transaction || db.transaction([CONFIG_STORE_NAME], READWRITE);
         const store = tx.objectStore(CONFIG_STORE_NAME);
 
@@ -1568,8 +1751,33 @@ const _setConfigStart = async ({ data, transaction = null }) => {
     }
 };
 
+const _setConfigField = async ({ key, value, transaction = null }) => {
+    if (
+        !schemaHelper.config.validator.field(key) ||
+        (schemaHelper.config.startFields.includes(key) && !schemaHelper.config.validator[key](value))
+    ) {
+        throw errorHelper.create.validation();
+    }
+
+    try {
+        const db = getDBInstanse();
+        const tx = transaction || db.transaction([CONFIG_STORE_NAME], READWRITE);
+        const store = tx.objectStore(CONFIG_STORE_NAME);
+
+        await store.put(value, key);
+
+        if (!transaction) {
+            await tx.done;
+        }
+        return value;
+    } catch (error) {
+        errorHelper.throwCustomOrInternal(error);
+    }
+};
+
 const _getConfigStart = async ({ transaction = null }) => {
     try {
+        const db = getDBInstanse();
         const tx = transaction || db.transaction([CONFIG_STORE_NAME], READONLY);
         const store = tx.objectStore(CONFIG_STORE_NAME);
 
@@ -1592,6 +1800,7 @@ const _getConfigStart = async ({ transaction = null }) => {
 
 const _resetConfigStart = async ({ transaction = null }) => {
     try {
+        const db = getDBInstanse();
         const tx = transaction || db.transaction([CONFIG_STORE_NAME], READWRITE);
         const store = tx.objectStore(CONFIG_STORE_NAME);
 
@@ -1609,10 +1818,15 @@ const _resetConfigStart = async ({ transaction = null }) => {
     }
 };
 
+const _setInitialConfigStart = async ({ transaction = null }) => {
+    await _resetConfigStart({ transaction });
+};
+
 const getCurrentBalance = async () => {
     const result = { default: 0, savings: 0 };
 
     try {
+        const db = getDBInstanse();
         const tx = db.transaction(db.objectStoreNames, READONLY);
         const categoriesStore = tx.objectStore(CATEGORIES_STORE_NAME);
         const plansDateIndex = tx.objectStore(PLANS_STORE_NAME).index(DATE_INDEX);
@@ -1654,6 +1868,7 @@ const getCurrentBalance = async () => {
 
 const getBalanceDynamic = async () => {
     try {
+        const db = getDBInstanse();
         const tx = db.transaction(db.objectStoreNames, READONLY);
         const categoriesStore = tx.objectStore(CATEGORIES_STORE_NAME);
         const plansDateIndex = tx.objectStore(PLANS_STORE_NAME).index(DATE_INDEX);
@@ -1709,18 +1924,11 @@ const getBalanceDynamic = async () => {
     }
 };
 
-// TODO
-// other complex methods (current balance, balance dynamic, plans matrix, categories list, actions list, plans table methods)
-// logic for first-time checking (past plans)
-// logic for empty init
-// logic for data parsing
-// logic for data saving
-
-// TODO
-// private (this) and user methods (in separate file)
-
 export default {
+    getDBInstanse,
     initDB,
     closeDB,
     destroyDB,
+    fillDB,
+    dumpDB,
 };
