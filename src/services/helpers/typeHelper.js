@@ -30,13 +30,13 @@ const getIsISORawDateString = value => {
 
 const getIsNull = value => {
     return value === null;
-}
+};
 
 const getIsObject = value => {
     return typeof value === 'object' && !Array.isArray(value) && !isNull(value);
-}
+};
 
-export default {
+const typeHelper = {
     getIsBoolean,
     getIsString,
     getIsNumber,
@@ -47,3 +47,5 @@ export default {
     getIsNull,
     getIsObject,
 };
+
+export default typeHelper;

@@ -17,8 +17,17 @@ const throwCustomOrInternal = error => {
     throw error;
 };
 
-export default {
+const throwOnNotEditable = record => {
+    if (!record._isEditable) {
+        throw create.validation();
+    }
+};
+
+const errorHelper = {
     create,
     getIsCustomError,
     throwCustomOrInternal,
+    throwOnNotEditable,
 };
+
+export default errorHelper;

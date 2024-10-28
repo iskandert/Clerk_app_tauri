@@ -8,7 +8,7 @@ function checkFields(data, fields) {
     return typeHelper.getIsObject(data) && fields.every(field => self.validator[field](data[field]));
 }
 
-export default {
+const schemaHelper = {
     category: {
         validator: {
             _id: typeHelper.getIsString,
@@ -82,3 +82,5 @@ export default {
         },
     },
 };
+
+export default schemaHelper;

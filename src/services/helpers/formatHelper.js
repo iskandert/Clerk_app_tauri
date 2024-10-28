@@ -10,8 +10,10 @@ const getISODateString = value => {
     return dayjs(value).format('YYYY-MM-DD');
 };
 
-export default {
+const formatHelper = {
     getISODateString,
     getISOYearMonthString,
     getISOYearMonthFromISODateString,
 };
+
+export default formatHelper;
