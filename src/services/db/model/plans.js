@@ -27,7 +27,7 @@ const { READONLY, READWRITE } = dbModeEnum;
 
 const getPlan = async _id => {
     if (!_id || !schemaHelper.plan.validator._id(_id)) {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('getPlan', { _id });
     }
 
     try {
@@ -43,8 +43,12 @@ const getPlan = async _id => {
 };
 
 const setPlan = async (data, _id = null, transaction = null) => {
-    if (!schemaHelper.plan.checkEditableFields(data) || (_id && !schemaHelper.plan.validator._id(_id))) {
-        throw errorHelper.create.validation();
+    if (
+        !schemaHelper.plan.checkEditableFields(data) ||
+        (_id && !schemaHelper.plan.validator._id(_id)) ||
+        formatHelper.getISOYearMonthString() > data.date
+    ) {
+        throw errorHelper.create.validation('setPlan', { data, _id });
     }
 
     try {
@@ -58,7 +62,7 @@ const setPlan = async (data, _id = null, transaction = null) => {
             if (!oldRecord) {
                 throw errorHelper.create.notFound();
             } else if (!schemaHelper.plan.validator.date(oldRecord.date)) {
-                throw errorHelper.create.validation();
+                throw errorHelper.create.validation('setPlan oldRecord', { oldRecord });
             } else {
                 const categoryRecord = await _getCategory({ _id: oldRecord.category_id, transaction: tx });
                 errorHelper.throwOnNotEditable(categoryRecord);
@@ -79,13 +83,14 @@ const setPlan = async (data, _id = null, transaction = null) => {
     }
 };
 
-const setSamePlans = async (data = null, _id = null, endDate = null, transaction = null) => {
+const setSamePlans = async (data = null, _id = null, endDate, transaction = null) => {
     if (
-        (!data && (!_id || !endDate)) ||
+        !schemaHelper.plan.validator.date(endDate) ||
+        (!data && !_id) ||
         (data && !schemaHelper.plan.checkEditableFields(data)) ||
-        (endDate && (!schemaHelper.plan.validator.date(endDate) || data.date >= endDate))
+        (_id && !schemaHelper.plan.validator._id(_id))
     ) {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('setSamePlans', { data, _id, endDate });
     }
 
     try {
@@ -97,6 +102,10 @@ const setSamePlans = async (data = null, _id = null, endDate = null, transaction
             record = await setPlan(data, _id, tx);
         } else {
             record = await getPlan(_id);
+        }
+
+        if (formatHelper.getISOYearMonthString() > record.date || record.date >= endDate) {
+            throw errorHelper.create.validation('setSamePlans date', { record, endDate });
         }
 
         const dates = [];
@@ -125,9 +134,14 @@ const setSamePlans = async (data = null, _id = null, endDate = null, transaction
     }
 };
 
-const extendPlans = async (date, endDate = null) => {
-    if (!typeHelper.getIsISOYearMonthString(date) || (endDate && !schemaHelper.plan.validator.date(endDate))) {
-        throw errorHelper.create.validation();
+const extendPlans = async (date, endDate) => {
+    if (
+        !schemaHelper.plan.validator.date(date) ||
+        !schemaHelper.plan.validator.date(endDate) ||
+        formatHelper.getISOYearMonthString() > formatHelper.getISOYearMonthString(dayjs(date).add(1, 'month')) ||
+        endDate <= date
+    ) {
+        throw errorHelper.create.validation('extendPlans', { date, endDate });
     }
 
     try {
@@ -163,15 +177,16 @@ const extendPlans = async (date, endDate = null) => {
     }
 };
 
-const deletePlans = async (date, endDate, categoryIds) => {
+const deletePlans = async (date, endDate = date, categoryIds) => {
     if (
         !schemaHelper.plan.validator.date(date) ||
+        formatHelper.getISOYearMonthString() > date ||
         !schemaHelper.plan.validator.date(endDate) ||
-        !(date < endDate) ||
+        endDate < date ||
         !categoryIds?.length ||
         !categoryIds.every(_id => schemaHelper.category.validator._id(_id))
     ) {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('deletePlans', { date, endDate, categoryIds });
     }
 
     try {
@@ -182,7 +197,7 @@ const deletePlans = async (date, endDate, categoryIds) => {
 
         const categories = (await categoriesStore.getAll()).filter(({ _id }) => categoryIds.includes(_id));
         if (categories.some(({ _isEditable }) => !_isEditable)) {
-            throw errorHelper.create.validation();
+            throw errorHelper.create.validation('deletePlans _isEditable', { categories });
         }
 
         const planIdsToDelete = [];
@@ -207,7 +222,7 @@ const deletePlans = async (date, endDate, categoryIds) => {
 
 const deletePlan = async _id => {
     if (!_id || !schemaHelper.plan.validator._id(_id)) {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('deletePlan', { _id });
     }
 
     try {
@@ -223,7 +238,7 @@ const deletePlan = async _id => {
             errorHelper.throwOnNotEditable(categoryRecord);
 
             if (record.date < formatHelper.getISOYearMonthString()) {
-                throw errorHelper.create.validation();
+                throw errorHelper.create.validation('deletePlan record', { record });
             }
         }
 
@@ -239,8 +254,8 @@ const recalcPlansOfCurrentMonth = async () => {
 };
 
 const recalcPlansOfMonth = async date => {
-    if (!typeHelper.getIsISOYearMonthString(date)) {
-        throw errorHelper.create.validation();
+    if (!schemaHelper.plan.validator.date(date)) {
+        throw errorHelper.create.validation('recalcPlansOfMonth', { date });
     }
 
     try {
@@ -333,26 +348,35 @@ const ensurePastPlans = async () => {
     try {
         const db = getDBInstanse();
         const tx = db.transaction([ACTIONS_STORE_NAME, PLANS_STORE_NAME], READWRITE);
-        const plansIndex = tx.objectStore(PLANS_STORE_NAME).index(CATEGORY_ID_AND_DATE_INDEX);
-        const actionsIndex = tx.objectStore(ACTIONS_STORE_NAME).index(CATEGORY_ID_AND_DATE_INDEX);
+        // const plansIndex = tx.objectStore(PLANS_STORE_NAME).index(CATEGORY_ID_AND_DATE_INDEX);
+        const plansIndex = tx.objectStore(PLANS_STORE_NAME).index(DATE_INDEX);
+        // const actionsIndex = tx.objectStore(ACTIONS_STORE_NAME).index(CATEGORY_ID_AND_DATE_INDEX);
 
-        const plansKeys = await plansIndex.getAllKeys();
+        const dates = await plansIndex.getAllKeys();
         await Promise.all(
-            plansKeys.map(async key => {
-                const plan = await plansIndex.get(key);
-                const actions = await actionsIndex.getAll(key);
-                let sum = 0;
-                actions.forEach(action => (sum += action.sum));
-                if (sum !== plan.sum) {
-                    await _setPlan({
-                        data: {
-                            ...plan,
-                            sum,
-                        },
-                        _id: plan._id,
-                        transaction: tx,
-                    });
-                }
+            dates.map(async date => {
+                // const [category_id, date] = key;
+                if (date >= formatHelper.getISOYearMonthString()) return;
+                await recalcPlansOfMonth(date);
+
+                // const plan = await plansIndex.get(key);
+                // const lastDate = formatHelper.getISODateString(dayjs(date).date(1).add(1, 'month').subtract(1, 'day'));
+                // // const actions = await actionsIndex.getAll(key);
+                // const actions = await actionsIndex.getAll(
+                //     IDBKeyRange.bound([category_id, `${date}-01`], [category_id, lastDate])
+                // );
+                // let sum = 0;
+                // actions.forEach(action => (sum += action.sum));
+                // if (sum !== plan.sum) {
+                //     await _setPlan({
+                //         data: {
+                //             ...plan,
+                //             sum,
+                //         },
+                //         _id: plan._id,
+                //         transaction: tx,
+                //     });
+                // }
             })
         );
     } catch (error) {

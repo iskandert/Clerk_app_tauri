@@ -47,9 +47,7 @@ const schemaHelper = {
             _id: typeHelper.getIsString,
             category_id: typeHelper.getIsString,
             sum: typeHelper.getIsPositiveNumber,
-            date: value => {
-                return typeHelper.getIsISOYearMonthString(value) && formatHelper.getISOYearMonthString() <= value;
-            },
+            date: typeHelper.getIsISOYearMonthString,
             comment: value => typeHelper.getIsString(value) || typeHelper.getIsNull(value),
             _updatedAt: typeHelper.getIsISORawDateString,
         },

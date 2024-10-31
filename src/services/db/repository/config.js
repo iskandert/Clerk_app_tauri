@@ -3,6 +3,7 @@ import { categoryStatusEnum, categoryTypeEnum } from '../../constants';
 import errorHelper from '../../helpers/errorHelper';
 import schemaHelper from '../../helpers/schemaHelper';
 import { getDBInstanse } from '../instance';
+import { dbIndexEnum, dbModeEnum, dbSettings, dbStoreEnum } from '../config';
 
 const { DB_NAME, DB_VERSION } = dbSettings;
 
@@ -28,7 +29,7 @@ const { READONLY, READWRITE } = dbModeEnum;
 
 const _updateConfigStart = async ({ firstCheck, transaction = null }) => {
     if (!schemaHelper.check.checkEditableFields(firstCheck)) {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('_updateConfigStart', { firstCheck });
     }
 
     try {
@@ -73,7 +74,7 @@ const _updateConfigStart = async ({ firstCheck, transaction = null }) => {
 
 const _setConfigStart = async ({ data, transaction = null }) => {
     if (!schemaHelper.config.checkStartFields(data)) {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('_setConfigStart', { data });
     }
 
     try {
@@ -101,7 +102,7 @@ const _setConfigField = async ({ key, value, transaction = null }) => {
         !schemaHelper.config.validator.field(key) ||
         (schemaHelper.config.startFields.includes(key) && !schemaHelper.config.validator[key](value))
     ) {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('_setConfigField', { key, value });
     }
 
     try {

@@ -4,7 +4,14 @@ import errorHelper from '../../helpers/errorHelper';
 import schemaHelper from '../../helpers/schemaHelper';
 import { getDBInstanse } from '../instance';
 import { v4 as uuidv4 } from 'uuid';
-import { categoryAccountedNames, categoryUnaccountedNames } from '../config';
+import {
+    categoryAccountedNames,
+    categoryUnaccountedNames,
+    dbIndexEnum,
+    dbModeEnum,
+    dbSettings,
+    dbStoreEnum,
+} from '../config';
 
 const { DB_NAME, DB_VERSION } = dbSettings;
 
@@ -30,7 +37,7 @@ const { READONLY, READWRITE } = dbModeEnum;
 
 const _getCategory = async ({ _id, transaction = null }) => {
     if (!_id || !schemaHelper.category.validator._id(_id)) {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('_getCategory', { _id });
     }
 
     try {
@@ -49,7 +56,7 @@ const _getCategory = async ({ _id, transaction = null }) => {
 
 const _setCategory = async ({ data, _id = null, _isAccounted = true, needUpdateTime = true, transaction = null }) => {
     if (!schemaHelper.category.checkEditableFields(data) || (_id && !schemaHelper.category.validator._id(_id))) {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('_setCategory', { data, _id, _isAccounted, needUpdateTime });
     }
 
     const record = { _isAccounted };
@@ -72,7 +79,7 @@ const _setCategory = async ({ data, _id = null, _isAccounted = true, needUpdateT
     } else if (dayjs(data._updatedAt).format() === data._updatedAt) {
         record._updatedAt = data._updatedAt;
     } else {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('_setCategory', { needUpdateTime, data });
     }
 
     try {
@@ -96,7 +103,7 @@ const _setInitialCategories = async ({ transaction = null }) => {
 
         let categories = await categoriesStore.getAll();
         if (categories.length) {
-            throw errorHelper.create.validation();
+            throw errorHelper.create.validation('_setInitialCategories categories', { categories });
         }
 
         const accountedNames = categoryAccountedNames;
@@ -142,7 +149,7 @@ const _setInitialCategories = async ({ transaction = null }) => {
 
 // const _deleteCategory = async ({ _id, transaction = null }) => {
 //     if (!_id || !schemaHelper.category.validator._id(_id)) {
-//         throw errorHelper.create.validation();
+//         throw errorHelper.create.validation('_deleteCategory', {_id});
 //     }
 
 //     try {

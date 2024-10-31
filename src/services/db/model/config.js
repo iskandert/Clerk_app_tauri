@@ -5,6 +5,7 @@ import schemaHelper from '../../helpers/schemaHelper';
 import { getDBInstanse } from '../instance';
 import { _getConfigStart } from '../repository/config';
 import formatHelper from '../../helpers/formatHelper';
+import { dbIndexEnum, dbModeEnum, dbSettings, dbStoreEnum } from '../config';
 
 const { DB_NAME, DB_VERSION } = dbSettings;
 

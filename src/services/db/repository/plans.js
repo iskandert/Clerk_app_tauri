@@ -15,7 +15,7 @@ const { READONLY, READWRITE } = dbModeEnum;
 
 const _getPlans = async ({ date, category_id, transaction = null }) => {
     if (!schemaHelper.plan.validator.date(date) || !schemaHelper.plan.validator.category_id(category_id)) {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('_getPlans', { date, category_id });
     }
 
     try {
@@ -31,7 +31,7 @@ const _getPlans = async ({ date, category_id, transaction = null }) => {
 
 const _setPlan = async ({ data, _id = null, needUpdateTime = true, transaction = null }) => {
     if (!schemaHelper.plan.checkEditableFields(data) || (_id && !schemaHelper.plan.validator._id(_id))) {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('_setPlan', { data, _id, needUpdateTime });
     }
 
     const record = {};
@@ -49,7 +49,7 @@ const _setPlan = async ({ data, _id = null, needUpdateTime = true, transaction =
     } else if (dayjs(data._updatedAt).format() === data._updatedAt) {
         record._updatedAt = data._updatedAt;
     } else {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('_setPlan record', { needUpdateTime, data });
     }
 
     try {
@@ -77,7 +77,7 @@ const _setPlan = async ({ data, _id = null, needUpdateTime = true, transaction =
 
 const _deletePlan = async ({ _id, transaction = null }) => {
     if (!_id || !schemaHelper.plan.validator._id(_id)) {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('_deletePlan', { _id });
     }
 
     try {
@@ -94,7 +94,7 @@ const _deletePlan = async ({ _id, transaction = null }) => {
 
 const _updatePlanByAction = async ({ action, isDeleted, transaction = null }) => {
     if (schemaHelper.action.checkEditableFields(action)) {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('_updatePlanByAction', { action, isDeleted });
     }
 
     try {

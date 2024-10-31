@@ -1,6 +1,7 @@
 import { categoryStatusEnum, categoryTypeEnum } from '../../constants';
 import errorHelper from '../../helpers/errorHelper';
 import schemaHelper from '../../helpers/schemaHelper';
+import { dbIndexEnum, dbModeEnum, dbSettings, dbStoreEnum } from '../config';
 import { getDBInstanse } from '../instance';
 import { _deleteCheck, _getCheck, _getCheckNext, _getCheckPrev, _setCheck } from '../repository/checks';
 import { _resetConfigStart, _updateConfigStart } from '../repository/config';
@@ -44,7 +45,7 @@ const getChecks = async () => {
 
 const getCheck = async date => {
     if (!date || !schemaHelper.check.validator.date(date)) {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('getCheck', { date });
     }
 
     try {
@@ -60,7 +61,7 @@ const getCheck = async date => {
 
 const setCheck = async data => {
     if (!schemaHelper.check.checkEditableFields(data)) {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('setCheck', { data });
     }
 
     try {
@@ -89,7 +90,7 @@ const setCheck = async data => {
 
 const deleteCheck = async date => {
     if (!date || !schemaHelper.check.validator.date(date)) {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('deleteCheck', { date });
     }
 
     try {

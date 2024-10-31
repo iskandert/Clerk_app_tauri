@@ -1,6 +1,5 @@
 import { deleteDB, openDB } from 'idb';
 import { v4 as uuidv4 } from 'uuid';
-import { validation } from './schemas';
 import errorHelper from './helpers/errorHelper';
 import schemaHelper from './helpers/schemaHelper';
 import { categoryStatusEnum, categoryTypeEnum } from './constants';
@@ -17,9 +16,11 @@ import {
 } from './db/config';
 import { transformData } from './db/transform';
 import { getDBInstanse, setDBInstanse } from './db/instance';
-import { _setInitialCategories } from './db/repository/categories';
+import { _setCategory, _setInitialCategories } from './db/repository/categories';
 import { _setConfigField, _setInitialConfigStart, _updateConfigStart } from './db/repository/config';
-import { _getCheckFirst } from './db/repository/checks';
+import { _getCheckFirst, _setCheck } from './db/repository/checks';
+import { _setAction } from './db/repository/actions';
+import { _setPlan } from './db/repository/plans';
 
 const { DB_NAME, DB_VERSION } = dbSettings;
 
@@ -97,29 +98,48 @@ const destroyDB = async () => {
     }
 };
 
+const setupInitialDB = async () => {
+    try {
+        const db = getDBInstanse();
+        const tx = db.transaction(db.objectStoreNames, READWRITE);
+
+        await _setInitialCategories({ transaction: tx });
+        await _setInitialConfigStart({ transaction: tx });
+        await tx.done;
+    } catch (error) {
+        errorHelper.throwCustomOrInternal(error);
+    }
+};
+
 const fillDB = async data => {
     try {
         const db = getDBInstanse();
         const tx = db.transaction(db.objectStoreNames, READWRITE);
 
         if (!data) {
-            await _setInitialCategories({ transaction: tx });
-            await _setInitialConfigStart({ transaction: tx });
-            return;
+            throw errorHelper.create.validation('fillDB', { data });
         }
 
         const isV0 = !data.version;
+        console.log(data.version);
+
         data = transformData(data);
 
-        if (
-            !Array.isArray(data[CATEGORIES_STORE_NAME]) ||
-            !Array.isArray(data[ACTIONS_STORE_NAME]) ||
-            !Array.isArray(data[PLANS_STORE_NAME]) ||
-            !Array.isArray(data[CHECKS_STORE_NAME]) ||
-            !typeHelper.getIsObject(data[CONFIG_STORE_NAME])
-        ) {
-            throw errorHelper.create.validation();
-        }
+        // if (
+        //     !Array.isArray(data[CATEGORIES_STORE_NAME]) ||
+        //     !Array.isArray(data[ACTIONS_STORE_NAME]) ||
+        //     !Array.isArray(data[PLANS_STORE_NAME]) ||
+        //     !Array.isArray(data[CHECKS_STORE_NAME]) ||
+        //     !typeHelper.getIsObject(data[CONFIG_STORE_NAME])
+        // ) {
+        //     throw errorHelper.create.validation();
+        // }
+
+        console.log(CATEGORIES_STORE_NAME, data[CATEGORIES_STORE_NAME]);
+        console.log(ACTIONS_STORE_NAME, data[ACTIONS_STORE_NAME]);
+        console.log(PLANS_STORE_NAME, data[PLANS_STORE_NAME]);
+        console.log(CHECKS_STORE_NAME, data[CHECKS_STORE_NAME]);
+        console.log(CONFIG_STORE_NAME, data[CONFIG_STORE_NAME]);
 
         await Promise.all(
             data[CATEGORIES_STORE_NAME].map(async data => {
@@ -220,6 +240,19 @@ const dumpDB = async () => {
 
         await tx.done;
         return result;
+    } catch (error) {
+        errorHelper.throwCustomOrInternal(error);
+    }
+};
+
+const hasDataInDB = async () => {
+    try {
+        const db = getDBInstanse();
+        const tx = db.transaction([CATEGORIES_STORE_NAME], READWRITE);
+        const categoriesStore = tx.objectStore(CATEGORIES_STORE_NAME);
+
+        const records = await categoriesStore.getAll();
+        return !!records.length;
     } catch (error) {
         errorHelper.throwCustomOrInternal(error);
     }
@@ -1936,8 +1969,10 @@ const dumpDB = async () => {
 
 export default {
     initDB,
+    setupInitialDB,
     closeDB,
     destroyDB,
     fillDB,
     dumpDB,
+    hasDataInDB,
 };

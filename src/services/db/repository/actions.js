@@ -11,7 +11,7 @@ const { READWRITE } = dbModeEnum;
 
 const _setAction = async ({ data, _id = null, needUpdateTime = true, transaction = null }) => {
     if (!schemaHelper.action.checkEditableFields(data) || (_id && !schemaHelper.action.validator._id(_id))) {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('_setAction', { data, _id, needUpdateTime });
     }
 
     const record = {};
@@ -29,7 +29,7 @@ const _setAction = async ({ data, _id = null, needUpdateTime = true, transaction
     } else if (dayjs(data._updatedAt).format() === data._updatedAt) {
         record._updatedAt = data._updatedAt;
     } else {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('_setAction', { needUpdateTime, data });
     }
 
     try {
@@ -48,7 +48,7 @@ const _setAction = async ({ data, _id = null, needUpdateTime = true, transaction
 
 const _deleteAction = async ({ _id, transaction = null }) => {
     if (!_id || !schemaHelper.action.validator._id(_id)) {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('_deleteAction', { _id });
     }
 
     try {

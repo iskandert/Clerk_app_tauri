@@ -17,10 +17,12 @@ import {
 
 const dbController = {
     init: db.initDB,
+    setupInitial: db.setupInitialDB,
     close: db.closeDB,
     destroy: db.destroyDB,
     fill: db.fillDB,
     dump: db.dumpDB,
+    hasData: db.hasDataInDB,
     getActionsListByMonth,
     getAction,
     setAction,

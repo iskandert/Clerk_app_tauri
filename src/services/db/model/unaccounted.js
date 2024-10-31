@@ -37,7 +37,7 @@ const _setUnaccountedAction = async ({ date, sum, status, type, transaction = nu
         !schemaHelper.category.validator.status(status) ||
         !schemaHelper.category.validator.type(type)
     ) {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('_setUnaccountedAction', { date, sum, status, type });
     }
 
     try {
@@ -164,7 +164,7 @@ const _setUnaccountedAction = async ({ date, sum, status, type, transaction = nu
 
 const _updateUnaccountedByAction = async ({ action, isDeleted = false, transaction = null }) => {
     if (!schemaHelper.action.checkEditableFields(action)) {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('_updateUnaccountedByAction', { action, isDeleted });
     }
 
     try {
@@ -208,7 +208,7 @@ const _updateUnaccountedByAction = async ({ action, isDeleted = false, transacti
 
 const _deleteUnaccountedByDate = async ({ date, transaction = null }) => {
     if (!schemaHelper.action.validator.date(date)) {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('_deleteUnaccountedByDate', { date });
     }
 
     try {
@@ -247,7 +247,7 @@ const _deleteUnaccountedByDate = async ({ date, transaction = null }) => {
 
 const _updateUnaccountedByDate = async ({ date, transaction = null }) => {
     if (!schemaHelper.action.validator.date(date)) {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('_updateUnaccountedByDate', { date });
     }
 
     try {

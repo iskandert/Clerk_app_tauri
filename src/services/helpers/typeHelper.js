@@ -13,19 +13,19 @@ const getIsNumber = value => {
 };
 
 const getIsPositiveNumber = value => {
-    return isNumber(value) && value > 0;
+    return getIsNumber(value) && value > 0;
 };
 
 const getIsISOYearMonthString = value => {
-    return isString(value) && dayjs(value).format('YYYY-MM') === value;
+    return getIsString(value) && dayjs(value).format('YYYY-MM') === value;
 };
 
 const getIsISODateString = value => {
-    return isString(value) && dayjs(value).format('YYYY-MM-DD') === value;
+    return getIsString(value) && dayjs(value).format('YYYY-MM-DD') === value;
 };
 
 const getIsISORawDateString = value => {
-    return isString(value) && dayjs(value).format() === value;
+    return getIsString(value) && dayjs(value).format() === value;
 };
 
 const getIsNull = value => {
@@ -33,7 +33,7 @@ const getIsNull = value => {
 };
 
 const getIsObject = value => {
-    return typeof value === 'object' && !Array.isArray(value) && !isNull(value);
+    return typeof value === 'object' && !Array.isArray(value) && !getIsNull(value);
 };
 
 const typeHelper = {

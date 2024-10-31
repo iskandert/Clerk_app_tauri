@@ -3,6 +3,7 @@ import { categoryStatusEnum, categoryTypeEnum } from '../../constants';
 import errorHelper from '../../helpers/errorHelper';
 import schemaHelper from '../../helpers/schemaHelper';
 import { getDBInstanse } from '../instance';
+import { dbIndexEnum, dbModeEnum, dbSettings, dbStoreEnum } from '../config';
 
 const { DB_NAME, DB_VERSION } = dbSettings;
 
@@ -26,7 +27,7 @@ const {
 
 const { READONLY, READWRITE } = dbModeEnum;
 
-const _getCheckFirst = async ({ transaction }) => {
+const _getCheckFirst = async ({ transaction = null }) => {
     try {
         const db = getDBInstanse();
         const tx = transaction || db.transaction([CHECKS_STORE_NAME], READONLY);
@@ -42,7 +43,7 @@ const _getCheckFirst = async ({ transaction }) => {
     }
 };
 
-const _getCheckLast = async ({ transaction }) => {
+const _getCheckLast = async ({ transaction = null }) => {
     try {
         const db = getDBInstanse();
         const tx = transaction || db.transaction([CHECKS_STORE_NAME], READONLY);
@@ -60,7 +61,7 @@ const _getCheckLast = async ({ transaction }) => {
 
 const _getCheck = async ({ date, transaction = null }) => {
     if (!date || !schemaHelper.check.validator.date(date)) {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('_getCheck', { date });
     }
 
     try {
@@ -76,9 +77,9 @@ const _getCheck = async ({ date, transaction = null }) => {
     }
 };
 
-const _getCheckNext = async ({ date, transaction = null, isIncludeNow = false }) => {
+const _getCheckNext = async ({ date, isIncludeNow = false, transaction = null }) => {
     if (!date || !schemaHelper.check.validator.date(date)) {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('_getCheckNext', { date, isIncludeNow });
     }
 
     try {
@@ -94,9 +95,9 @@ const _getCheckNext = async ({ date, transaction = null, isIncludeNow = false })
     }
 };
 
-const _getCheckPrev = async ({ date, transaction }) => {
+const _getCheckPrev = async ({ date, transaction = null }) => {
     if (!date || !schemaHelper.check.validator.date(date)) {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('_getCheckPrev', { date });
     }
 
     try {
@@ -114,7 +115,7 @@ const _getCheckPrev = async ({ date, transaction }) => {
 
 const _setCheck = async ({ data, needUpdateTime = true, transaction = null }) => {
     if (!schemaHelper.check.checkEditableFields(data)) {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('_setCheck', { data, needUpdateTime });
     }
 
     const record = {};
@@ -127,7 +128,7 @@ const _setCheck = async ({ data, needUpdateTime = true, transaction = null }) =>
     } else if (dayjs(data._updatedAt).format() === data._updatedAt) {
         record._updatedAt = data._updatedAt;
     } else {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('_setCheck needUpdateTime', { needUpdateTime, data });
     }
 
     try {
@@ -145,7 +146,7 @@ const _setCheck = async ({ data, needUpdateTime = true, transaction = null }) =>
 
 const _deleteCheck = async ({ date, transaction = null }) => {
     if (!date || !schemaHelper.check.validator.date(date)) {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('_deleteCheck', { date });
     }
 
     try {

@@ -19,17 +19,87 @@
                 </div>
                 <p>Сервис для&nbsp;анализа и&nbsp;планирования бюджета</p>
                 <div class="btn-container">
-                    <AuthBar type="in" />
-                    <el-link
+                    <el-button
+                        size="large"
                         type="primary"
-                        @click="openDescription"
-                        >Зачем мне это нужно?</el-link
+                        @click="createEmpty"
                     >
+                        Создать новый бюджет
+                    </el-button>
+
+                    <el-button
+                        size="large"
+                        type="primary"
+                        plain
+                        @click="uploadFile"
+                    >
+                        Загрузить файл бюджета
+                    </el-button>
                 </div>
             </div>
         </el-card>
     </div>
+
+    <input
+        type="file"
+        ref="fileInputEl"
+        style="display: none"
+        accept=".txt"
+        @change="processFile"
+    />
 </template>
+
+<script setup>
+import LogoIcon from '../components/icons/LogoIcon.vue';
+import LogoText from '../components/icons/LogoText.vue';
+import { ref } from 'vue';
+import { ElMessage } from 'element-plus';
+import { notifyWrap } from '../services/utils';
+import dbController from '../services/db/controller';
+import router from '../router';
+
+const fileInputEl = ref(null);
+const uploadFile = () => {
+    fileInputEl.value.click();
+};
+
+const processFile = event => {
+    const file = event.target.files[0];
+    const reader = new FileReader();
+
+    try {
+        reader.onload = async () => {
+            const fileContent = reader.result;
+            try {
+                const parsedData = JSON.parse(fileContent);
+                dbController.fill(parsedData);
+
+                ElMessage({
+                    type: 'success',
+                    message: 'Сохранено',
+                });
+                router.push('/actions');
+            } catch (error) {
+                console.log(error);
+                notifyWrap(error);
+            }
+        };
+
+        reader.readAsText(file);
+    } catch (error) {
+        console.log(error);
+    }
+};
+
+const createEmpty = async () => {
+    try {
+        await dbController.setupInitial();
+        router.push('/actions');
+    } catch (error) {
+        console.log(error);
+    }
+};
+</script>
 
 <style scoped>
 .container {
@@ -75,47 +145,10 @@ p {
 .btn-container {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
     gap: 8px;
 }
+.btn-container > .el-button {
+    margin: 0;
+}
 </style>
-<script>
-import AuthBar from '../components/AuthBar.vue';
-import LogoIcon from '../components/icons/LogoIcon.vue';
-import LogoText from '../components/icons/LogoText.vue';
-import Google from '../components/icons/Google.vue';
-import { shallowRef } from 'vue';
-
-export default {
-    components: { AuthBar, LogoIcon, LogoText },
-    setup() {
-        return {
-            iconGoogle: shallowRef(Google),
-        };
-    },
-    data() {
-        return {
-            descDialog: false,
-        };
-    },
-    methods: {
-        openDescription() {
-            this.$alert(
-                `
-        <div>Мы не храним данные о вашем бюджете.
-        Информация сохраняется в отдельной папке на вашем Google диске.</div>
-        <div>К другим папкам и файлам наше приложение не будет иметь доступа.</div>
-        `,
-                'Это нужно для безопасного хранения данных',
-                {
-                    dangerouslyUseHTMLString: true,
-                    confirmButtonText: 'Понятно!',
-                }
-            );
-        },
-    },
-    mounted() {
-        console.log('login');
-    },
-};
-</script>

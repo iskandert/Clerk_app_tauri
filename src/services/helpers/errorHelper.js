@@ -2,7 +2,7 @@ import { errorEnum } from '../constants';
 
 const create = {
     notFound: () => ({ isNotFound: true }),
-    validation: () => ({ isValidation: true }),
+    validation: (...args) => ({ isValidation: true, args }),
     internal: () => ({ isInternal: true }),
 };
 
@@ -11,6 +11,7 @@ const getIsCustomError = error => {
 };
 
 const throwCustomOrInternal = error => {
+    console.trace(error)
     if (!errorHelper.getIsCustomError(error)) {
         error = create.internal();
     }

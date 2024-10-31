@@ -31,7 +31,7 @@ const { READONLY, READWRITE } = dbModeEnum;
 
 const getActionsListByMonth = async ISOYearMonth => {
     if (schemaHelper.plan.validator.date(ISOYearMonth)) {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('getActionsListByMonth', { ISOYearMonth });
     }
 
     try {
@@ -76,7 +76,7 @@ const getActionsListByMonth = async ISOYearMonth => {
 
 const getAction = async _id => {
     if (!_id || !schemaHelper.action.validator._id(_id)) {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('getAction', { _id });
     }
 
     try {
@@ -93,7 +93,7 @@ const getAction = async _id => {
 
 const setAction = async (data, _id = null) => {
     if (!schemaHelper.action.checkEditableFields(data) || (_id && !schemaHelper.action.validator._id(_id))) {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('setAction', { data, _id });
     }
 
     try {
@@ -128,7 +128,7 @@ const setAction = async (data, _id = null) => {
 
 const deleteAction = async _id => {
     if (!_id || !schemaHelper.action.validator._id(_id)) {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('deleteAction', { _id });
     }
 
     try {
@@ -156,7 +156,7 @@ const _updateDataByAction = async ({ newAction = null, oldAction = null, transac
         (!newAction && !oldAction) ||
         !(schemaHelper.action.checkEditableFields(newAction) || schemaHelper.action.checkEditableFields(oldAction))
     ) {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('_updateDataByAction', { newAction, oldAction });
     }
 
     try {

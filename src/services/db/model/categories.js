@@ -1,6 +1,7 @@
 import { categoryStatusEnum, categoryTypeEnum } from '../../constants';
 import errorHelper from '../../helpers/errorHelper';
 import schemaHelper from '../../helpers/schemaHelper';
+import { dbIndexEnum, dbModeEnum, dbSettings, dbStoreEnum } from '../config';
 import { getDBInstanse } from '../instance';
 import { _getCategory, _setCategory } from '../repository/categories';
 
@@ -50,7 +51,7 @@ const getCategoriesList = async () => {
 
 const getCategory = async _id => {
     if (!_id || !schemaHelper.category.validator._id(_id)) {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('getCategory', { _id });
     }
 
     try {
@@ -66,7 +67,7 @@ const getCategory = async _id => {
 
 const setCategory = async (data, _id = null) => {
     if (!schemaHelper.category.checkEditableFields(data) || (_id && !schemaHelper.category.validator._id(_id))) {
-        throw errorHelper.create.validation();
+        throw errorHelper.create.validation('setCategory', { data, _id });
     }
 
     try {
@@ -83,7 +84,7 @@ const setCategory = async (data, _id = null) => {
                 // TODO temporally denied change status or type
                 // TODO when enable, update unaccounted actions
                 if (oldRecord.status !== data.status || oldRecord.type !== data.type) {
-                    throw errorHelper.create.validation();
+                    throw errorHelper.create.validation('setCategory oldRecord', { oldRecord, data });
                 }
             }
         }
@@ -103,7 +104,7 @@ const setCategory = async (data, _id = null) => {
 // TODO temporally denied category deleting
 // const deleteCategory = async _id => {
 //     if (!_id || !schemaHelper.category.validator._id(_id)) {
-//         throw errorHelper.create.validation();
+//         throw errorHelper.create.validation('deleteCategory',{ _id});
 //     }
 
 //     try {
