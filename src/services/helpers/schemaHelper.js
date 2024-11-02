@@ -20,8 +20,8 @@ const schemaHelper = {
                 return Object.values(categoryTypeEnum).includes(value);
             },
             _updatedAt: typeHelper.getIsISORawDateString,
-            _isEditable: typeHelper.getIsBoolean,
-            _isAccounted: typeHelper.getIsBoolean,
+            _isEditable: typeHelper.getIsBooleanNumber,
+            _isAccounted: typeHelper.getIsBooleanNumber,
         },
         editableFields: ['name', 'status', 'type'],
         checkEditableFields(data) {

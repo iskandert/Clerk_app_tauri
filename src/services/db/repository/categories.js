@@ -54,8 +54,13 @@ const _getCategory = async ({ _id, transaction = null }) => {
     }
 };
 
-const _setCategory = async ({ data, _id = null, _isAccounted = true, needUpdateTime = true, transaction = null }) => {
-    if (!schemaHelper.category.checkEditableFields(data) || (_id && !schemaHelper.category.validator._id(_id))) {
+const _setCategory = async ({ data, _id = null, isAccounted = true, needUpdateTime = true, transaction = null }) => {
+    const _isAccounted = +isAccounted;
+    if (
+        !schemaHelper.category.checkEditableFields(data) ||
+        (_id && !schemaHelper.category.validator._id(_id)) ||
+        !schemaHelper.category.validator._isAccounted(_isAccounted)
+    ) {
         throw errorHelper.create.validation('_setCategory', { data, _id, _isAccounted, needUpdateTime });
     }
 
@@ -70,9 +75,9 @@ const _setCategory = async ({ data, _id = null, _isAccounted = true, needUpdateT
         record._id = uuidv4();
     }
     if (record._isAccounted) {
-        record._isEditable = true;
+        record._isEditable = 1;
     } else {
-        record._isEditable = false;
+        record._isEditable = 0;
     }
     if (needUpdateTime || !data._updatedAt) {
         record._updatedAt = dayjs().format();
@@ -130,8 +135,8 @@ const _setInitialCategories = async ({ transaction = null }) => {
 
         await Promise.all(
             [
-                ...accountedData.map(data => ({ data, _isAccounted: true })),
-                ...unaccountedData.map(data => ({ data, _isAccounted: false })),
+                ...accountedData.map(data => ({ data, isAccounted: true })),
+                ...unaccountedData.map(data => ({ data, isAccounted: false })),
             ].map(async settings => {
                 await _setCategory({ ...settings, transaction: tx });
             })

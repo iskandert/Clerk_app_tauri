@@ -50,10 +50,10 @@ const _setUnaccountedAction = async ({ date, sum, status, type, transaction = nu
 
         const increasingActionCategory = await categoriesStore
             .index(IS_ACCOUNTED_AND_STATUS_AND_TYPE_INDEX)
-            .get([false, status, type]);
+            .get([0, status, type]);
         const decreasingActionCategory = await categoriesStore
             .index(IS_ACCOUNTED_AND_STATUS_AND_TYPE_INDEX)
-            .get([false, oppositeStatus, type]);
+            .get([0, oppositeStatus, type]);
 
         const actionsIndex = tx.objectStore(ACTIONS_STORE_NAME).index(CATEGORY_ID_AND_DATE_INDEX);
         const increasingAction = await actionsIndex.get([increasingActionCategory._id, date]);
@@ -331,7 +331,7 @@ const _getUnaccountedCategories = async ({ transaction = null }) => {
         const tx = transaction || db.transaction([CATEGORIES_STORE_NAME], READONLY);
         const categoriesAccountedIndex = tx.objectStore(CATEGORIES_STORE_NAME).index(IS_ACCOUNTED_INDEX);
 
-        const result = await categoriesAccountedIndex.getAll(false);
+        const result = await categoriesAccountedIndex.getAll(0);
 
         if (!transaction) {
             await tx.done;

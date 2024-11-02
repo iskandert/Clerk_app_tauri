@@ -16,6 +16,10 @@ const getIsPositiveNumber = value => {
     return getIsNumber(value) && value > 0;
 };
 
+const getIsBooleanNumber = value => {
+    return getIsNumber(value) && [0, 1].includes(value);
+};
+
 const getIsISOYearMonthString = value => {
     return getIsString(value) && dayjs(value).format('YYYY-MM') === value;
 };
@@ -40,6 +44,7 @@ const typeHelper = {
     getIsBoolean,
     getIsString,
     getIsNumber,
+    getIsBooleanNumber,
     getIsPositiveNumber,
     getIsISOYearMonthString,
     getIsISODateString,

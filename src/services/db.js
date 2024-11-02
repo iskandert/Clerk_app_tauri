@@ -146,7 +146,7 @@ const fillDB = async data => {
                 return await _setCategory({
                     data,
                     _id: data._id,
-                    _isAccounted: data._isAccounted,
+                    isAccounted: data.isAccounted,
                     needUpdateTime: false,
                     transaction: tx,
                 });

@@ -46,7 +46,7 @@ const getV1FromV0 = data => {
             status: record.status,
             type: record.type,
             name: record.name,
-            _isAccounted: true,
+            isAccounted: true,
             _updatedAt: record._createdAt,
         });
     });
@@ -57,7 +57,7 @@ const getV1FromV0 = data => {
                 status,
                 type,
                 name: categoryUnaccountedNames[status][type],
-                _isAccounted: false,
+                isAccounted: false,
             });
         }
     }
