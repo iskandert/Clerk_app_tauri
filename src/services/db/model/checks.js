@@ -30,15 +30,17 @@ const {
 const { READONLY, READWRITE } = dbModeEnum;
 
 const getChecks = async () => {
+    let tx;
     try {
         const db = getDBInstanse();
-        const tx = db.transaction([CHECKS_STORE_NAME], READONLY);
+        tx = db.transaction([CHECKS_STORE_NAME], READONLY);
         const records = await tx.store.getAll();
         if (!records.length) {
             throw errorHelper.create.notFound();
         }
         return records;
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -64,9 +66,10 @@ const setCheck = async data => {
         throw errorHelper.create.validation('setCheck', { data });
     }
 
+    let tx;
     try {
         const db = getDBInstanse();
-        const tx = db.transaction(db.objectStoreNames, READWRITE);
+        tx = db.transaction(db.objectStoreNames, READWRITE);
         const currentCheck = await _setCheck({ data, transaction: tx });
 
         const nextCheck = await _getCheckNext({ date: data.date, transaction: tx });
@@ -84,6 +87,7 @@ const setCheck = async data => {
         await tx.done;
         return currentCheck;
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -93,9 +97,10 @@ const deleteCheck = async date => {
         throw errorHelper.create.validation('deleteCheck', { date });
     }
 
+    let tx;
     try {
         const db = getDBInstanse();
-        const tx = transaction || db.transaction(db.objectStoreNames, READWRITE);
+        tx = db.transaction(db.objectStoreNames, READWRITE);
         const store = tx.objectStore(CHECKS_STORE_NAME);
         const record = await store.get(date);
         if (!record) {
@@ -122,6 +127,7 @@ const deleteCheck = async date => {
 
         await tx.done;
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };

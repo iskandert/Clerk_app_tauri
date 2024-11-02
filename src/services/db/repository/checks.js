@@ -28,9 +28,10 @@ const {
 const { READONLY, READWRITE } = dbModeEnum;
 
 const _getCheckFirst = async ({ transaction = null }) => {
+    let tx = transaction;
     try {
         const db = getDBInstanse();
-        const tx = transaction || db.transaction([CHECKS_STORE_NAME], READONLY);
+        tx ||= db.transaction([CHECKS_STORE_NAME], READONLY);
         const dates = await tx.objectStore(CHECKS_STORE_NAME).getAllKeys();
         if (!dates.length) {
             return null;
@@ -39,14 +40,16 @@ const _getCheckFirst = async ({ transaction = null }) => {
         const date = dates.sort()[0];
         return await _getCheck({ date, transaction: tx });
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };
 
 const _getCheckLast = async ({ transaction = null }) => {
+    let tx = transaction;
     try {
         const db = getDBInstanse();
-        const tx = transaction || db.transaction([CHECKS_STORE_NAME], READONLY);
+        tx ||= db.transaction([CHECKS_STORE_NAME], READONLY);
         const dates = await tx.objectStore(CHECKS_STORE_NAME).getAllKeys();
         if (!dates.length) {
             return null;
@@ -55,6 +58,7 @@ const _getCheckLast = async ({ transaction = null }) => {
         const date = dates.sort()[dates.length - 1];
         return await _getCheck({ date, transaction: tx });
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -64,15 +68,17 @@ const _getCheck = async ({ date, transaction = null }) => {
         throw errorHelper.create.validation('_getCheck', { date });
     }
 
+    let tx = transaction;
     try {
         const db = getDBInstanse();
-        const tx = transaction || db.transaction([CHECKS_STORE_NAME], READWRITE);
+        tx ||= db.transaction([CHECKS_STORE_NAME], READWRITE);
         const record = await tx.objectStore(CHECKS_STORE_NAME).get(date);
         if (!transaction) {
             await tx.done;
         }
         return record || null;
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -82,15 +88,17 @@ const _getCheckNext = async ({ date, isIncludeNow = false, transaction = null })
         throw errorHelper.create.validation('_getCheckNext', { date, isIncludeNow });
     }
 
+    let tx = transaction;
     try {
         const db = getDBInstanse();
-        const tx = transaction || db.transaction([CHECKS_STORE_NAME], READONLY);
+        tx ||= db.transaction([CHECKS_STORE_NAME], READONLY);
         const record = await tx.objectStore(CHECKS_STORE_NAME).get(IDBKeyRange.lowerBound(date, !isIncludeNow));
         if (!transaction) {
             await tx.done;
         }
         return record || null;
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -100,15 +108,17 @@ const _getCheckPrev = async ({ date, transaction = null }) => {
         throw errorHelper.create.validation('_getCheckPrev', { date });
     }
 
+    let tx = transaction;
     try {
         const db = getDBInstanse();
-        const tx = transaction || db.transaction([CHECKS_STORE_NAME], READONLY);
+        tx ||= db.transaction([CHECKS_STORE_NAME], READONLY);
         const records = await tx.objectStore(CHECKS_STORE_NAME).getAll(IDBKeyRange.upperBound(date, true));
         if (!transaction) {
             await tx.done;
         }
         return records.at(-1) || null;
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -131,15 +141,17 @@ const _setCheck = async ({ data, needUpdateTime = true, transaction = null }) =>
         throw errorHelper.create.validation('_setCheck needUpdateTime', { needUpdateTime, data });
     }
 
+    let tx = transaction;
     try {
         const db = getDBInstanse();
-        const tx = transaction || db.transaction([CHECKS_STORE_NAME], READWRITE);
+        tx ||= db.transaction([CHECKS_STORE_NAME], READWRITE);
         await tx.objectStore(CHECKS_STORE_NAME).put(record);
         if (!transaction) {
             await tx.done;
         }
         return record;
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -149,14 +161,16 @@ const _deleteCheck = async ({ date, transaction = null }) => {
         throw errorHelper.create.validation('_deleteCheck', { date });
     }
 
+    let tx = transaction;
     try {
         const db = getDBInstanse();
-        const tx = transaction || db.transaction([CHECKS_STORE_NAME], READWRITE);
+        tx ||= db.transaction([CHECKS_STORE_NAME], READWRITE);
         await tx.objectStore(CHECKS_STORE_NAME).delete(date);
         if (!transaction) {
             await tx.done;
         }
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };

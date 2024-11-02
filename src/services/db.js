@@ -99,22 +99,25 @@ const destroyDB = async () => {
 };
 
 const setupInitialDB = async () => {
+    let tx;
     try {
         const db = getDBInstanse();
-        const tx = db.transaction(db.objectStoreNames, READWRITE);
+        tx = db.transaction(db.objectStoreNames, READWRITE);
 
         await _setInitialCategories({ transaction: tx });
         await _setInitialConfigStart({ transaction: tx });
         await tx.done;
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };
 
 const fillDB = async data => {
+    let tx;
     try {
         const db = getDBInstanse();
-        const tx = db.transaction(db.objectStoreNames, READWRITE);
+        tx = db.transaction(db.objectStoreNames, READWRITE);
 
         if (!data) {
             throw errorHelper.create.validation('fillDB', { data });
@@ -205,6 +208,7 @@ const fillDB = async data => {
 
         await tx.done;
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -212,7 +216,7 @@ const fillDB = async data => {
 const dumpDB = async () => {
     try {
         const db = getDBInstanse();
-        const tx = db.transaction(db.objectStoreNames, READWRITE);
+        const tx = db.transaction(db.objectStoreNames, READONLY);
 
         const categoriesStore = tx.objectStore(CATEGORIES_STORE_NAME);
         const actionsStore = tx.objectStore(ACTIONS_STORE_NAME);
@@ -248,7 +252,7 @@ const dumpDB = async () => {
 const hasDataInDB = async () => {
     try {
         const db = getDBInstanse();
-        const tx = db.transaction([CATEGORIES_STORE_NAME], READWRITE);
+        const tx = db.transaction([CATEGORIES_STORE_NAME], READONLY);
         const categoriesStore = tx.objectStore(CATEGORIES_STORE_NAME);
 
         const records = await categoriesStore.getAll();

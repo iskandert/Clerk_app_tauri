@@ -28,9 +28,10 @@ const {
 const { READONLY, READWRITE } = dbModeEnum;
 
 const getCategoriesList = async () => {
+    let tx;
     try {
         const db = getDBInstanse();
-        const tx = db.transaction([CATEGORIES_STORE_NAME], READONLY);
+        tx = db.transaction([CATEGORIES_STORE_NAME], READONLY);
         const categoriesIndex = tx.objectStore(CATEGORIES_STORE_NAME).index(STATUS_AND_TYPE_INDEX);
 
         const result = {};
@@ -45,6 +46,7 @@ const getCategoriesList = async () => {
         await tx.done;
         return result;
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -70,9 +72,10 @@ const setCategory = async (data, _id = null) => {
         throw errorHelper.create.validation('setCategory', { data, _id });
     }
 
+    let tx;
     try {
         const db = getDBInstanse();
-        const tx = transaction || db.transaction([CATEGORIES_STORE_NAME], READWRITE);
+        tx = db.transaction([CATEGORIES_STORE_NAME], READWRITE);
 
         if (_id) {
             const oldRecord = await tx.store.get(_id);
@@ -97,6 +100,7 @@ const setCategory = async (data, _id = null) => {
 
         await tx.done();
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };

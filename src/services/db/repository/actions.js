@@ -32,9 +32,10 @@ const _setAction = async ({ data, _id = null, needUpdateTime = true, transaction
         throw errorHelper.create.validation('_setAction', { needUpdateTime, data });
     }
 
+    let tx = transaction;
     try {
         const db = getDBInstanse();
-        const tx = transaction || db.transaction([ACTIONS_STORE_NAME], READWRITE);
+        tx ||= db.transaction([ACTIONS_STORE_NAME], READWRITE);
 
         await tx.objectStore(ACTIONS_STORE_NAME).put(record);
         if (!transaction) {
@@ -42,6 +43,7 @@ const _setAction = async ({ data, _id = null, needUpdateTime = true, transaction
         }
         return record;
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -51,14 +53,16 @@ const _deleteAction = async ({ _id, transaction = null }) => {
         throw errorHelper.create.validation('_deleteAction', { _id });
     }
 
+    let tx = transaction;
     try {
         const db = getDBInstanse();
-        const tx = transaction || db.transaction([ACTIONS_STORE_NAME], READWRITE);
+        tx ||= db.transaction([ACTIONS_STORE_NAME], READWRITE);
         await tx.objectStore(ACTIONS_STORE_NAME).delete(_id);
         if (!transaction) {
             await tx.done;
         }
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };

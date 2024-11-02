@@ -40,9 +40,10 @@ const _setUnaccountedAction = async ({ date, sum, status, type, transaction = nu
         throw errorHelper.create.validation('_setUnaccountedAction', { date, sum, status, type });
     }
 
+    let tx = transaction;
     try {
         const db = getDBInstanse();
-        const tx = transaction || db.transaction(db.objectStoreNames, READWRITE);
+        tx ||= db.transaction(db.objectStoreNames, READWRITE);
         const categoriesStore = tx.objectStore(CATEGORIES_STORE_NAME);
 
         const oppositeStatus =
@@ -158,6 +159,7 @@ const _setUnaccountedAction = async ({ date, sum, status, type, transaction = nu
             return newAction;
         }
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -167,9 +169,10 @@ const _updateUnaccountedByAction = async ({ action, isDeleted = false, transacti
         throw errorHelper.create.validation('_updateUnaccountedByAction', { action, isDeleted });
     }
 
+    let tx = transaction;
     try {
         const db = getDBInstanse();
-        const tx = transaction || db.transaction(db.objectStoreNames, READWRITE);
+        tx ||= db.transaction(db.objectStoreNames, READWRITE);
 
         const nextCheck = await _getCheckNext({
             date: action.date,
@@ -202,6 +205,7 @@ const _updateUnaccountedByAction = async ({ action, isDeleted = false, transacti
         }
         return result;
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -211,9 +215,10 @@ const _deleteUnaccountedByDate = async ({ date, transaction = null }) => {
         throw errorHelper.create.validation('_deleteUnaccountedByDate', { date });
     }
 
+    let tx = transaction;
     try {
         const db = getDBInstanse();
-        const tx = transaction || db.transaction(db.objectStoreNames, READWRITE);
+        tx ||= db.transaction(db.objectStoreNames, READWRITE);
 
         const actionsStore = tx.objectStore(ACTIONS_STORE_NAME);
         const actionsDateIndex = actionsStore.index(DATE_INDEX);
@@ -241,6 +246,7 @@ const _deleteUnaccountedByDate = async ({ date, transaction = null }) => {
             await tx.done;
         }
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -250,9 +256,10 @@ const _updateUnaccountedByDate = async ({ date, transaction = null }) => {
         throw errorHelper.create.validation('_updateUnaccountedByDate', { date });
     }
 
+    let tx = transaction;
     try {
         const db = getDBInstanse();
-        const tx = transaction || db.transaction(db.objectStoreNames, READWRITE);
+        tx ||= db.transaction(db.objectStoreNames, READWRITE);
 
         const actionsStore = tx.objectStore(ACTIONS_STORE_NAME);
         const actionsDateIndex = actionsStore.index(DATE_INDEX);
@@ -321,14 +328,16 @@ const _updateUnaccountedByDate = async ({ date, transaction = null }) => {
             await tx.done;
         }
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };
 
 const _getUnaccountedCategories = async ({ transaction = null }) => {
+    let tx = transaction;
     try {
         const db = getDBInstanse();
-        const tx = transaction || db.transaction([CATEGORIES_STORE_NAME], READONLY);
+        tx ||= db.transaction([CATEGORIES_STORE_NAME], READONLY);
         const categoriesAccountedIndex = tx.objectStore(CATEGORIES_STORE_NAME).index(IS_ACCOUNTED_INDEX);
 
         const result = await categoriesAccountedIndex.getAll(0);
@@ -337,7 +346,10 @@ const _getUnaccountedCategories = async ({ transaction = null }) => {
             await tx.done;
         }
         return result;
-    } catch (error) {}
+    } catch (error) {
+        tx?.abort();
+        errorHelper.throwCustomOrInternal(error);
+    }
 };
 
 export {

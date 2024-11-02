@@ -32,9 +32,10 @@ const { READONLY, READWRITE } = dbModeEnum;
 const getCurrentBalance = async () => {
     const result = { default: 0, savings: 0 };
 
+    let tx;
     try {
         const db = getDBInstanse();
-        const tx = db.transaction(db.objectStoreNames, READONLY);
+        tx = db.transaction(db.objectStoreNames, READONLY);
         const categoriesStore = tx.objectStore(CATEGORIES_STORE_NAME);
         const plansDateIndex = tx.objectStore(PLANS_STORE_NAME).index(DATE_INDEX);
         const actionsDateIndex = tx.objectStore(ACTIONS_STORE_NAME).index(DATE_INDEX);
@@ -69,14 +70,16 @@ const getCurrentBalance = async () => {
         await tx.done;
         return result;
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };
 
 const getBalanceDynamic = async () => {
+    let tx;
     try {
         const db = getDBInstanse();
-        const tx = db.transaction(db.objectStoreNames, READONLY);
+        tx = db.transaction(db.objectStoreNames, READONLY);
         const categoriesStore = tx.objectStore(CATEGORIES_STORE_NAME);
         const plansDateIndex = tx.objectStore(PLANS_STORE_NAME).index(DATE_INDEX);
 
@@ -127,6 +130,7 @@ const getBalanceDynamic = async () => {
         await tx.done;
         return balances;
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };

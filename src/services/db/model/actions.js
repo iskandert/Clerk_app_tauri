@@ -34,9 +34,10 @@ const getActionsListByMonth = async ISOYearMonth => {
         throw errorHelper.create.validation('getActionsListByMonth', { ISOYearMonth });
     }
 
+    let tx;
     try {
         const db = getDBInstanse();
-        const tx = db.transaction([ACTIONS_STORE_NAME], READONLY);
+        tx = db.transaction([ACTIONS_STORE_NAME], READONLY);
         const actionsIndex = tx.objectStore(ACTIONS_STORE_NAME).index(DATE_INDEX);
 
         const startDate = `${ISOYearMonth}-01`;
@@ -70,6 +71,7 @@ const getActionsListByMonth = async ISOYearMonth => {
             return 0;
         });
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -96,9 +98,10 @@ const setAction = async (data, _id = null) => {
         throw errorHelper.create.validation('setAction', { data, _id });
     }
 
+    let tx;
     try {
         const db = getDBInstanse();
-        const tx = db.transaction(db.objectStoreNames, READWRITE);
+        tx = db.transaction(db.objectStoreNames, READWRITE);
         const store = tx.objectStore(ACTIONS_STORE_NAME);
 
         let oldRecord;
@@ -120,8 +123,10 @@ const setAction = async (data, _id = null) => {
 
         const record = await _setAction({ data, _id, transaction: tx });
         await _updateDataByAction({ oldAction: oldRecord, newAction: record, transaction: tx });
+        await tx.done;
         return record;
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -131,9 +136,10 @@ const deleteAction = async _id => {
         throw errorHelper.create.validation('deleteAction', { _id });
     }
 
+    let tx;
     try {
         const db = getDBInstanse();
-        const tx = db.transaction(db.objectStoreNames, READWRITE);
+        tx = db.transaction(db.objectStoreNames, READWRITE);
         const store = tx.objectStore(ACTIONS_STORE_NAME);
 
         const record = await store.get(_id);
@@ -146,7 +152,9 @@ const deleteAction = async _id => {
 
         await _deleteAction({ _id, transaction: tx });
         await _updateDataByAction({ oldAction: record, newAction: null, transaction: tx });
+        await tx.done;
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -159,9 +167,10 @@ const _updateDataByAction = async ({ newAction = null, oldAction = null, transac
         throw errorHelper.create.validation('_updateDataByAction', { newAction, oldAction });
     }
 
+    let tx = transaction;
     try {
         const db = getDBInstanse();
-        const tx = transaction || db.transaction(db.objectStoreNames, READWRITE);
+        tx ||= db.transaction(db.objectStoreNames, READWRITE);
 
         if (oldAction) {
             await _updatePlanByAction({
@@ -198,6 +207,7 @@ const _updateDataByAction = async ({ newAction = null, oldAction = null, transac
 
         tx.done();
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };

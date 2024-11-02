@@ -40,9 +40,10 @@ const _getCategory = async ({ _id, transaction = null }) => {
         throw errorHelper.create.validation('_getCategory', { _id });
     }
 
+    let tx = transaction;
     try {
         const db = getDBInstanse();
-        const tx = transaction || db.transaction([CATEGORIES_STORE_NAME], READONLY);
+        tx ||= db.transaction([CATEGORIES_STORE_NAME], READONLY);
         const record = await tx.objectStore(CATEGORIES_STORE_NAME).get(_id);
 
         if (!transaction) {
@@ -50,6 +51,7 @@ const _getCategory = async ({ _id, transaction = null }) => {
         }
         return record || null;
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -87,23 +89,26 @@ const _setCategory = async ({ data, _id = null, isAccounted = true, needUpdateTi
         throw errorHelper.create.validation('_setCategory', { needUpdateTime, data });
     }
 
+    let tx = transaction;
     try {
         const db = getDBInstanse();
-        const tx = transaction || db.transaction([CATEGORIES_STORE_NAME], READWRITE);
+        tx ||= db.transaction([CATEGORIES_STORE_NAME], READWRITE);
         await tx.objectStore(CATEGORIES_STORE_NAME).put(record);
         if (!transaction) {
             await tx.done;
         }
         return record;
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };
 
 const _setInitialCategories = async ({ transaction = null }) => {
+    let tx = transaction;
     try {
         const db = getDBInstanse();
-        const tx = transaction || db.transaction([CATEGORIES_STORE_NAME], READWRITE);
+        tx ||= db.transaction([CATEGORIES_STORE_NAME], READWRITE);
         const categoriesStore = tx.objectStore(CATEGORIES_STORE_NAME);
 
         let categories = await categoriesStore.getAll();
@@ -146,6 +151,7 @@ const _setInitialCategories = async ({ transaction = null }) => {
             await tx.done;
         }
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -157,14 +163,16 @@ const _setInitialCategories = async ({ transaction = null }) => {
 //         throw errorHelper.create.validation('_deleteCategory', {_id});
 //     }
 
+// let tx = transaction;
 //     try {
 //         const db = getDBInstanse();
-//         const tx = transaction || db.transaction([CATEGORIES_STORE_NAME], READWRITE);
+//         tx ||= db.transaction([CATEGORIES_STORE_NAME], READWRITE);
 //         await tx.objectStore(CATEGORIES_STORE_NAME).delete(_id);
 //         if (!transaction) {
 //             await tx.done;
 //         }
 //     } catch (error) {
+//         tx?.abort();
 //         errorHelper.throwCustomOrInternal(error);
 //     }
 // };

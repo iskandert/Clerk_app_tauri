@@ -32,9 +32,10 @@ const _updateConfigStart = async ({ firstCheck, transaction = null }) => {
         throw errorHelper.create.validation('_updateConfigStart', { firstCheck });
     }
 
+    let tx = transaction;
     try {
         const db = getDBInstanse();
-        const tx = transaction || db.transaction(db.objectStoreNames, READWRITE);
+        tx ||= db.transaction(db.objectStoreNames, READWRITE);
         const actionsStore = tx.objectStore(ACTIONS_STORE_NAME);
         const categoriesStore = tx.objectStore(CATEGORIES_STORE_NAME);
 
@@ -68,6 +69,7 @@ const _updateConfigStart = async ({ firstCheck, transaction = null }) => {
 
         await _setConfigStart({ data, transaction: tx });
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -77,9 +79,10 @@ const _setConfigStart = async ({ data, transaction = null }) => {
         throw errorHelper.create.validation('_setConfigStart', { data });
     }
 
+    let tx = transaction;
     try {
         const db = getDBInstanse();
-        const tx = transaction || db.transaction([CONFIG_STORE_NAME], READWRITE);
+        tx ||= db.transaction([CONFIG_STORE_NAME], READWRITE);
         const store = tx.objectStore(CONFIG_STORE_NAME);
 
         await Promise.all(
@@ -93,6 +96,7 @@ const _setConfigStart = async ({ data, transaction = null }) => {
         }
         return data;
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -105,9 +109,10 @@ const _setConfigField = async ({ key, value, transaction = null }) => {
         throw errorHelper.create.validation('_setConfigField', { key, value });
     }
 
+    let tx = transaction;
     try {
         const db = getDBInstanse();
-        const tx = transaction || db.transaction([CONFIG_STORE_NAME], READWRITE);
+        tx ||= db.transaction([CONFIG_STORE_NAME], READWRITE);
         const store = tx.objectStore(CONFIG_STORE_NAME);
 
         await store.put(value, key);
@@ -117,14 +122,16 @@ const _setConfigField = async ({ key, value, transaction = null }) => {
         }
         return value;
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };
 
 const _getConfigStart = async ({ transaction = null }) => {
+    let tx = transaction;
     try {
         const db = getDBInstanse();
-        const tx = transaction || db.transaction([CONFIG_STORE_NAME], READONLY);
+        tx ||= db.transaction([CONFIG_STORE_NAME], READONLY);
         const store = tx.objectStore(CONFIG_STORE_NAME);
 
         const result = {};
@@ -140,14 +147,16 @@ const _getConfigStart = async ({ transaction = null }) => {
         }
         return result;
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };
 
 const _resetConfigStart = async ({ transaction = null }) => {
+    let tx = transaction;
     try {
         const db = getDBInstanse();
-        const tx = transaction || db.transaction([CONFIG_STORE_NAME], READWRITE);
+        tx ||= db.transaction([CONFIG_STORE_NAME], READWRITE);
         const store = tx.objectStore(CONFIG_STORE_NAME);
 
         await Promise.all(
@@ -160,6 +169,7 @@ const _resetConfigStart = async ({ transaction = null }) => {
             await tx.done;
         }
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };

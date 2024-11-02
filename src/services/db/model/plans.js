@@ -51,9 +51,10 @@ const setPlan = async (data, _id = null, transaction = null) => {
         throw errorHelper.create.validation('setPlan', { data, _id });
     }
 
+    let tx = transaction;
     try {
         const db = getDBInstanse();
-        const tx = transaction || db.transaction([PLANS_STORE_NAME, CATEGORIES_STORE_NAME], READWRITE);
+        tx ||= db.transaction([PLANS_STORE_NAME, CATEGORIES_STORE_NAME], READWRITE);
         const store = tx.objectStore(PLANS_STORE_NAME);
 
         let oldRecord;
@@ -79,6 +80,7 @@ const setPlan = async (data, _id = null, transaction = null) => {
         }
         return record;
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -93,9 +95,10 @@ const setSamePlans = async (data = null, _id = null, endDate, transaction = null
         throw errorHelper.create.validation('setSamePlans', { data, _id, endDate });
     }
 
+    let tx = transaction;
     try {
         const db = getDBInstanse();
-        const tx = transaction || db.transaction([PLANS_STORE_NAME, CATEGORIES_STORE_NAME], READWRITE);
+        tx ||= db.transaction([PLANS_STORE_NAME, CATEGORIES_STORE_NAME], READWRITE);
 
         let record;
         if (data) {
@@ -130,6 +133,7 @@ const setSamePlans = async (data = null, _id = null, endDate, transaction = null
             await tx.done;
         }
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -144,9 +148,10 @@ const extendPlans = async (date, endDate) => {
         throw errorHelper.create.validation('extendPlans', { date, endDate });
     }
 
+    let tx;
     try {
         const db = getDBInstanse();
-        const tx = db.transaction([PLANS_STORE_NAME, CATEGORIES_STORE_NAME], READWRITE);
+        tx = db.transaction([PLANS_STORE_NAME, CATEGORIES_STORE_NAME], READWRITE);
         const plansDateIndex = tx.objectStore(PLANS_STORE_NAME).index(DATE_INDEX);
         const categoriesStore = tx.objectStore(CATEGORIES_STORE_NAME);
 
@@ -173,6 +178,7 @@ const extendPlans = async (date, endDate) => {
         );
         await tx.done;
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -189,9 +195,10 @@ const deletePlans = async (date, endDate = date, categoryIds) => {
         throw errorHelper.create.validation('deletePlans', { date, endDate, categoryIds });
     }
 
+    let tx;
     try {
         const db = getDBInstanse();
-        const tx = db.transaction([PLANS_STORE_NAME, CATEGORIES_STORE_NAME], READWRITE);
+        tx = db.transaction([PLANS_STORE_NAME, CATEGORIES_STORE_NAME], READWRITE);
         const plansIndex = tx.objectStore(PLANS_STORE_NAME).index(CATEGORY_ID_AND_DATE_INDEX);
         const categoriesStore = tx.objectStore(CATEGORIES_STORE_NAME);
 
@@ -216,6 +223,7 @@ const deletePlans = async (date, endDate = date, categoryIds) => {
 
         await tx.done;
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -225,9 +233,10 @@ const deletePlan = async _id => {
         throw errorHelper.create.validation('deletePlan', { _id });
     }
 
+    let tx;
     try {
         const db = getDBInstanse();
-        const tx = db.transaction([PLANS_STORE_NAME, CATEGORIES_STORE_NAME], READWRITE);
+        tx = db.transaction([PLANS_STORE_NAME, CATEGORIES_STORE_NAME], READWRITE);
         const store = tx.objectStore(PLANS_STORE_NAME);
 
         const record = await store.get(_id);
@@ -245,6 +254,7 @@ const deletePlan = async _id => {
         await _deletePlan({ _id, transaction: tx });
         await tx.done;
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -258,9 +268,10 @@ const recalcPlansOfMonth = async date => {
         throw errorHelper.create.validation('recalcPlansOfMonth', { date });
     }
 
+    let tx;
     try {
         const db = getDBInstanse();
-        const tx = db.transaction([PLANS_STORE_NAME, ACTIONS_STORE_NAME], READWRITE);
+        tx = db.transaction([PLANS_STORE_NAME, ACTIONS_STORE_NAME], READWRITE);
         const plansDateIndex = tx.objectStore(PLANS_STORE_NAME).index(DATE_INDEX);
         const actionsDateIndex = tx.objectStore(ACTIONS_STORE_NAME).index(DATE_INDEX);
         const actions = await actionsDateIndex.getAll(
@@ -300,14 +311,16 @@ const recalcPlansOfMonth = async date => {
 
         await tx.done;
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };
 
 const getPlansMatrix = async () => {
+    let tx;
     try {
         const db = getDBInstanse();
-        const tx = db.transaction([CATEGORIES_STORE_NAME, PLANS_STORE_NAME], READONLY);
+        tx = db.transaction([CATEGORIES_STORE_NAME, PLANS_STORE_NAME], READONLY);
         const categoriesStore = tx.objectStore(CATEGORIES_STORE_NAME);
         const plansStore = tx.objectStore(PLANS_STORE_NAME);
 
@@ -340,14 +353,16 @@ const getPlansMatrix = async () => {
         await tx.done;
         return matrix;
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };
 
 const ensurePastPlans = async () => {
+    let tx;
     try {
         const db = getDBInstanse();
-        const tx = db.transaction([ACTIONS_STORE_NAME, PLANS_STORE_NAME], READWRITE);
+        tx = db.transaction([ACTIONS_STORE_NAME, PLANS_STORE_NAME], READWRITE);
         // const plansIndex = tx.objectStore(PLANS_STORE_NAME).index(CATEGORY_ID_AND_DATE_INDEX);
         const plansIndex = tx.objectStore(PLANS_STORE_NAME).index(DATE_INDEX);
         // const actionsIndex = tx.objectStore(ACTIONS_STORE_NAME).index(CATEGORY_ID_AND_DATE_INDEX);
@@ -380,6 +395,7 @@ const ensurePastPlans = async () => {
             })
         );
     } catch (error) {
+        tx?.abort();
         errorHelper.throwCustomOrInternal(error);
     }
 };
