@@ -4,7 +4,6 @@
             <div class="range__container">
                 <el-card>
                     <div class="title">
-                        <!-- <h4> -->
                         <el-date-picker
                             v-model="currentMonth"
                             :disabled-date="time => time.getTime() > Date.now()"
@@ -13,9 +12,11 @@
                             format="MMMM YYYY"
                             type="month"
                         />
-                        <!-- </h4> -->
-                        <div class="balance">
-                            <template v-if="isCheckedBalance">
+                        <div
+                            v-loading="isLoadingBalance"
+                            class="balance"
+                        >
+                            <template v-if="balance">
                                 <p class="main_balance">
                                     <el-link
                                         type="primary"
@@ -23,12 +24,7 @@
                                     >
                                         Остаток:
                                     </el-link>
-                                    {{
-                                        getFormattedCount(currentBalance.balance, {
-                                            mode: 'currency',
-                                            accuracy: 0,
-                                        })
-                                    }}
+                                    {{ formatHelper.getCurrency(balance.default, 0) }}
                                 </p>
                                 <p class="with-savings_balance">
                                     <el-link
@@ -37,15 +33,10 @@
                                     >
                                         Накопления:
                                     </el-link>
-                                    {{
-                                        getFormattedCount(currentBalance.savings, {
-                                            mode: 'currency',
-                                            accuracy: 0,
-                                        })
-                                    }}
+                                    {{ formatHelper.getCurrency(balance.savings, 0) }}
                                 </p>
                             </template>
-                            <template v-else>
+                            <!-- <template v-else>
                                 <div class="balance_empty">
                                     <el-icon :size="13">
                                         <Warning />
@@ -57,7 +48,7 @@
                                     @click="openBalanceDialog"
                                     >Сверить</el-link
                                 >
-                            </template>
+                            </template> -->
                         </div>
                     </div>
                 </el-card>
@@ -67,19 +58,21 @@
             </div>
             <div class="actions__container">
                 <el-card>
-                    <el-scrollbar
-                        max-height="calc(100vh - var(--header-height) - var(--footer-height) - 136px)"
-                    >
-                        <div class="actions">
+                    <el-scrollbar max-height="calc(100vh - var(--header-height) - var(--footer-height) - 136px)">
+                        <div
+                            v-if="isDataReady"
+                            v-loading="isLoadingActions"
+                            class="actions"
+                        >
                             <template
-                                v-for="({ day, actions }, idx) in actionsByDays"
-                                :key="idx"
+                                v-for="{ date, actions } in actions"
+                                :key="date"
                             >
-                                <h6>{{ day }}</h6>
+                                <h6>{{ getFormattedDate(date) }}</h6>
                                 <div
                                     class="action"
-                                    v-for="(action, i) in actions"
-                                    :key="i"
+                                    v-for="action in actions"
+                                    :key="action._id"
                                 >
                                     <div class="icon"></div>
                                     <div class="text">
@@ -87,17 +80,13 @@
                                             class="category desktop-only el-link el-link--default is-underline"
                                             @click="callEditAction(action)"
                                         >
-                                            {{
-                                                getEntityField(categoriesStored, action.category_id)
-                                            }}
+                                            {{ categoriesById[action.category_id].name }}
                                         </div>
                                         <div
                                             class="category mobile-only el-link el-link--default is-underline"
                                             @click="callEditAction(action, true)"
                                         >
-                                            {{
-                                                getEntityField(categoriesStored, action.category_id)
-                                            }}
+                                            {{ categoriesById[action.category_id].name }}
                                         </div>
                                         <span class="comment">
                                             {{ action.comment || 'Без комментария' }}
@@ -131,14 +120,14 @@
                                         >
                                             <Unlock />
                                         </el-icon>
-                                        <span class="count">{{
-                                            getFormattedCount(action.sum, { mode: 'currency' })
-                                        }}</span>
+                                        <span class="count">
+                                            {{ formatHelper.getCurrency(action.sum) }}
+                                        </span>
                                     </div>
                                 </div>
                             </template>
                             <el-empty
-                                v-if="!actionsByDays?.length"
+                                v-if="!actions.length"
                                 description="Сохраненных операций пока нет"
                                 :image-size="163"
                             ></el-empty>
@@ -210,73 +199,56 @@ import { Config } from '../services/changings';
 import store from '../store';
 import router from '../router';
 import { useRoute } from 'vue-router';
+import dbController from '../services/db/controller';
+import formatHelper from '../services/helpers/formatHelper';
 
 const iconPlus = shallowRef(CirclePlusFilled);
 const actionDialog = ref(false);
 const isEditMode = ref(false);
 const balanceDialog = ref(false);
-const currentMonth = ref(new Date(dayjs().format('YYYY-MM-DD')));
+const currentMonth = ref(new Date(formatHelper.getISODateString()));
 
-const categoriesStored = computed(() => {
-    return store.getters.getData('categories');
+const isLoadingActions = ref(false);
+const isLoadingBalance = ref(false);
+
+const actions = ref(null);
+const categories = ref(null);
+const balance = ref(null);
+
+const categoriesById = computed(() =>
+    categories.value.reduce((acc, category) => {
+        acc[category._id] = category;
+        return acc;
+    }, {})
+);
+
+const isDataReady = computed(() => categories.value && actions.value);
+
+const currentMonthFormatted = computed(() => {
+    return formatHelper.getISOYearMonthString(currentMonth.value);
 });
-const actionsStored = computed(() => {
-    return store.getters.getData('actions');
-});
-const actionsByDays = computed(() => {
-    const today = dayjs(dayjs().format('YYYY-MM-DD'));
 
-    const getEmptyDate = date => {
-        const dateObj = dayjs(date);
-        let displayedDate = dateObj.format('D MMMM');
+const getFormattedDate = date => {
+    let result = '';
 
-        if (dateObj.year() < today.year()) displayedDate = dateObj.format('D MMMM YYYY[ г.]');
-        if (!today.diff(dateObj)) displayedDate = 'Сегодня';
-        if (today.diff(dateObj, 'day') === 1) displayedDate = 'Вчера';
+    const relative = formatHelper.getRelativeDay(date, true);
+    if (relative) result += `${relative}, `;
 
-        return {
-            day: displayedDate,
-            actions: [],
-        };
-    };
+    result += formatHelper.getEuropeanDateNecessary(date);
+    result += `, ${formatHelper.getWeekDayShort(date)}`;
 
-    const result = {};
-
-    actionsStored.value
-        .slice()
-        .sort((a, b) => new Date(b._createdAt) - new Date(a._createdAt))
-        .forEach(action => {
-            if (!dayjs(action.date).isSame(currentMonth.value, 'month')) return;
-
-            const actionDate = dayjs(action.date).format('YYYY-MM-DD');
-
-            if (!result[actionDate]) {
-                result[actionDate] = getEmptyDate(actionDate);
-            }
-
-            result[actionDate].actions.push(action);
-        });
-
-    return Object.entries(result)
-        .sort(([a], [b]) => new Date(b) - new Date(a))
-        .map(item => item[1]);
-});
-const isCheckedBalance = computed(() => {
-    return store.getters.getData('config')?.checking_date;
-});
-const currentBalance = computed(() => {
-    const config = new Config();
-    return config.getCurrent();
-});
+    return result;
+};
 
 const getActionClass = category_id => {
-    let status = getEntityField(categoriesStored.value, category_id, 'status');
-    let type = getEntityField(categoriesStored.value, category_id, 'type');
+    const { status, type } = categoriesById.value[category_id];
     return status + ' ' + type;
 };
+
 const openActionDialog = () => {
     actionDialog.value = true;
 };
+
 const callEditAction = (action, isMobile = false) => {
     router.push({
         path: '/actions',
@@ -289,6 +261,7 @@ const callEditAction = (action, isMobile = false) => {
     isEditMode.value = true;
     if (isMobile) actionDialog.value = true;
 };
+
 const handleCancelAction = () => {
     actionDialog.value = false;
     isEditMode.value = false;
@@ -300,14 +273,56 @@ const handleCancelAction = () => {
         replace: true,
     });
 };
+
 const openBalanceDialog = () => {
     balanceDialog.value = true;
 };
+
 const handleCancelBalance = () => {
     balanceDialog.value = false;
 };
 
-onMounted(() => {
+const loadActions = async () => {
+    try {
+        isLoadingActions.value = true;
+        actions.value = await dbController.getActionsListByMonth(currentMonthFormatted.value);
+    } catch (error) {
+        console.log(error);
+    } finally {
+        isLoadingActions.value = false;
+    }
+};
+
+const loadCategories = async () => {
+    try {
+        categories.value = await dbController.getCategoriesList();
+    } catch (error) {
+        console.log(error);
+    }
+};
+
+const loadBalance = async () => {
+    try {
+        isLoadingBalance.value = true;
+        balance.value = await dbController.getCurrentBalance();
+    } catch (error) {
+        console.log(error);
+    } finally {
+        isLoadingBalance.value = false;
+    }
+};
+
+const init = async () => {
+    await loadCategories();
+    await loadActions();
+    await loadBalance();
+};
+
+watch(currentMonthFormatted, () => loadActions());
+
+onMounted(async () => {
+    await init();
+
     const route = useRoute();
     if (JSON.parse(route?.query?.mobile || 'false')) actionDialog.value = true;
 });
@@ -388,7 +403,9 @@ onMounted(() => {
 :deep(.el-scrollbar__view) {
     display: contents;
 }
-
+.actions {
+    min-height: 30%;
+}
 .actions > h6 {
     margin-bottom: 12px;
 }

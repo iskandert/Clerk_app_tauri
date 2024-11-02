@@ -10,6 +10,7 @@ import 'element-plus/theme-chalk/display.css';
 import axios from 'axios';
 import ru from 'element-plus/dist/locale/ru.js';
 import { dayjs } from './services/utils';
+import weekday from 'dayjs/plugin/weekday';
 
 // const user = store.getters.getUser
 const app = createApp(App);
@@ -20,6 +21,7 @@ app.use(router).use(store).use(ElementPlus, {
     locale: ru,
 });
 
+dayjs.extend(weekday);
 app.config.globalProperties.$dayjs = dayjs;
 
 app.mount('#app');

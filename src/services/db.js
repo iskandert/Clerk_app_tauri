@@ -21,6 +21,7 @@ import { _setConfigField, _setInitialConfigStart, _updateConfigStart } from './d
 import { _getCheckFirst, _setCheck } from './db/repository/checks';
 import { _setAction } from './db/repository/actions';
 import { _setPlan } from './db/repository/plans';
+import { ensurePastPlans } from './db/model/plans';
 
 const { DB_NAME, DB_VERSION } = dbSettings;
 
@@ -200,6 +201,8 @@ const fillDB = async data => {
         );
 
         if (isV0) {
+            await ensurePastPlans();
+
             const firstCheck = await _getCheckFirst({ transaction: tx });
             if (firstCheck) {
                 await _updateConfigStart({ firstCheck, transaction: tx });

@@ -1,6 +1,6 @@
 import db from '../db';
 import { deleteAction, getAction, getActionsListByMonth, setAction } from './model/actions';
-import { getCategoriesList, getCategory, setCategory } from './model/categories';
+import { getCategoriesByGroups, getCategoriesList, getCategory, setCategory } from './model/categories';
 import { deleteCheck, getCheck, getChecks, setCheck } from './model/checks';
 import { getBalanceDynamic, getCurrentBalance } from './model/config';
 import {
@@ -27,6 +27,7 @@ const dbController = {
     getAction,
     setAction,
     deleteAction,
+    getCategoriesByGroups,
     getCategoriesList,
     getCategory,
     setCategory,

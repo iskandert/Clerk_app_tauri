@@ -27,12 +27,13 @@ const {
 
 const { READONLY, READWRITE } = dbModeEnum;
 
-const getCategoriesList = async () => {
+const getCategoriesByGroups = async () => {
     let tx;
     try {
         const db = getDBInstanse();
         tx = db.transaction([CATEGORIES_STORE_NAME], READONLY);
-        const categoriesIndex = tx.objectStore(CATEGORIES_STORE_NAME).index(STATUS_AND_TYPE_INDEX);
+        const categoriesStore = tx.objectStore(CATEGORIES_STORE_NAME);
+        const categoriesIndex = categoriesStore.index(STATUS_AND_TYPE_INDEX);
 
         const result = {};
         for (const status of Object.values(categoryStatusEnum)) {
@@ -45,6 +46,22 @@ const getCategoriesList = async () => {
 
         await tx.done;
         return result;
+    } catch (error) {
+        tx?.abort();
+        errorHelper.throwCustomOrInternal(error);
+    }
+};
+
+const getCategoriesList = async () => {
+    let tx;
+    try {
+        const db = getDBInstanse();
+        tx = db.transaction([CATEGORIES_STORE_NAME], READONLY);
+        const categoriesStore = tx.objectStore(CATEGORIES_STORE_NAME);
+
+        const records = await categoriesStore.getAll();
+        await tx.done;
+        return records;
     } catch (error) {
         tx?.abort();
         errorHelper.throwCustomOrInternal(error);
@@ -132,6 +149,7 @@ const setCategory = async (data, _id = null) => {
 // };
 
 export {
+    getCategoriesByGroups,
     getCategoriesList,
     getCategory,
     setCategory,

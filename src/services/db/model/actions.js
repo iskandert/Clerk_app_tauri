@@ -1,3 +1,4 @@
+import dayjs from 'dayjs';
 import errorHelper from '../../helpers/errorHelper';
 import formatHelper from '../../helpers/formatHelper';
 import schemaHelper from '../../helpers/schemaHelper';
@@ -8,6 +9,7 @@ import { _getCheckFirst } from '../repository/checks';
 import { _updateConfigStart } from '../repository/config';
 import { _updatePlanByAction } from '../repository/plans';
 import { _deleteAction, _setAction, _updateUnaccountedByAction } from './unaccounted';
+import mathHelper from '../../helpers/mathHelper';
 
 const {
     //
@@ -30,14 +32,14 @@ const {
 const { READONLY, READWRITE } = dbModeEnum;
 
 const getActionsListByMonth = async ISOYearMonth => {
-    if (schemaHelper.plan.validator.date(ISOYearMonth)) {
+    if (!schemaHelper.plan.validator.date(ISOYearMonth)) {
         throw errorHelper.create.validation('getActionsListByMonth', { ISOYearMonth });
     }
 
     let tx;
     try {
         const db = getDBInstanse();
-        tx = db.transaction([ACTIONS_STORE_NAME], READONLY);
+        tx = db.transaction([ACTIONS_STORE_NAME, CATEGORIES_STORE_NAME], READONLY);
         const actionsIndex = tx.objectStore(ACTIONS_STORE_NAME).index(DATE_INDEX);
 
         const startDate = `${ISOYearMonth}-01`;
@@ -46,15 +48,20 @@ const getActionsListByMonth = async ISOYearMonth => {
         const actions = await actionsIndex.getAll(IDBKeyRange.bound(startDate, endDate));
         const actionsByDates = {};
 
-        actions.forEach(action => {
-            if (!actionsByDates[action.date]) {
-                actionsByDates[action.date] = {
-                    date: action.date,
-                    actions: [],
-                };
-            }
-            actionsByDates[action.date].actions.push(action);
-        });
+        actions
+            .map(action => ({
+                ...action,
+                sum: mathHelper.round(action.sum),
+            }))
+            .forEach(action => {
+                if (!actionsByDates[action.date]) {
+                    actionsByDates[action.date] = {
+                        date: action.date,
+                        actions: [],
+                    };
+                }
+                actionsByDates[action.date].actions.push(action);
+            });
 
         for (const date in actionsByDates) {
             actionsByDates[date].actions.sort(({ _updatedAt: time1 }, { _updatedAt: time2 }) => {
@@ -87,7 +94,11 @@ const getAction = async _id => {
         if (!record) {
             throw errorHelper.create.notFound();
         }
-        return record;
+
+        return {
+            ...record,
+            sum: mathHelper.round(record.sum),
+        };
     } catch (error) {
         errorHelper.throwCustomOrInternal(error);
     }
