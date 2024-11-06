@@ -40,7 +40,9 @@ const _getCheckFirst = async ({ transaction = null }) => {
         const date = dates.sort()[0];
         return await _getCheck({ date, transaction: tx });
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -58,7 +60,9 @@ const _getCheckLast = async ({ transaction = null }) => {
         const date = dates.sort()[dates.length - 1];
         return await _getCheck({ date, transaction: tx });
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -78,7 +82,9 @@ const _getCheck = async ({ date, transaction = null }) => {
         }
         return record || null;
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -98,7 +104,9 @@ const _getCheckNext = async ({ date, isIncludeNow = false, transaction = null })
         }
         return record || null;
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -118,7 +126,9 @@ const _getCheckPrev = async ({ date, transaction = null }) => {
         }
         return records.at(-1) || null;
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -151,7 +161,9 @@ const _setCheck = async ({ data, needUpdateTime = true, transaction = null }) =>
         }
         return record;
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -170,7 +182,9 @@ const _deleteCheck = async ({ date, transaction = null }) => {
             await tx.done;
         }
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };

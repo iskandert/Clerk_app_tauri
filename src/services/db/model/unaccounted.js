@@ -159,7 +159,9 @@ const _setUnaccountedAction = async ({ date, sum, status, type, transaction = nu
             return newAction;
         }
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -205,7 +207,9 @@ const _updateUnaccountedByAction = async ({ action, isDeleted = false, transacti
         }
         return result;
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -246,7 +250,9 @@ const _deleteUnaccountedByDate = async ({ date, transaction = null }) => {
             await tx.done;
         }
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -328,7 +334,9 @@ const _updateUnaccountedByDate = async ({ date, transaction = null }) => {
             await tx.done;
         }
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -347,7 +355,9 @@ const _getUnaccountedCategories = async ({ transaction = null }) => {
         }
         return result;
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };

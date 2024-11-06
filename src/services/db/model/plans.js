@@ -80,7 +80,9 @@ const setPlan = async (data, _id = null, transaction = null) => {
         }
         return record;
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -133,7 +135,9 @@ const setSamePlans = async (data = null, _id = null, endDate, transaction = null
             await tx.done;
         }
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -178,7 +182,9 @@ const extendPlans = async (date, endDate) => {
         );
         await tx.done;
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -190,7 +196,7 @@ const deletePlans = async (date, endDate = date, categoryIds) => {
         !schemaHelper.plan.validator.date(endDate) ||
         endDate < date ||
         !categoryIds?.length ||
-        !categoryIds.every(_id => schemaHelper.category.validator._id(_id))
+        categoryIds.some(_id => !schemaHelper.category.validator._id(_id))
     ) {
         throw errorHelper.create.validation('deletePlans', { date, endDate, categoryIds });
     }
@@ -223,7 +229,9 @@ const deletePlans = async (date, endDate = date, categoryIds) => {
 
         await tx.done;
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -254,7 +262,9 @@ const deletePlan = async _id => {
         await _deletePlan({ _id, transaction: tx });
         await tx.done;
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -311,7 +321,9 @@ const recalcPlansOfMonth = async date => {
 
         await tx.done;
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -353,7 +365,9 @@ const getPlansMatrix = async () => {
         await tx.done;
         return matrix;
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -395,7 +409,9 @@ const ensurePastPlans = async () => {
             })
         );
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };

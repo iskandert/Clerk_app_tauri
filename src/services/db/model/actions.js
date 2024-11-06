@@ -78,7 +78,9 @@ const getActionsListByMonth = async ISOYearMonth => {
             return 0;
         });
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -137,7 +139,9 @@ const setAction = async (data, _id = null) => {
         await tx.done;
         return record;
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -165,7 +169,9 @@ const deleteAction = async _id => {
         await _updateDataByAction({ oldAction: record, newAction: null, transaction: tx });
         await tx.done;
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -173,7 +179,8 @@ const deleteAction = async _id => {
 const _updateDataByAction = async ({ newAction = null, oldAction = null, transaction = null }) => {
     if (
         (!newAction && !oldAction) ||
-        !(schemaHelper.action.checkEditableFields(newAction) || schemaHelper.action.checkEditableFields(oldAction))
+        (newAction && !schemaHelper.action.checkEditableFields(newAction)) ||
+        (oldAction && !schemaHelper.action.checkEditableFields(oldAction))
     ) {
         throw errorHelper.create.validation('_updateDataByAction', { newAction, oldAction });
     }
@@ -216,9 +223,11 @@ const _updateDataByAction = async ({ newAction = null, oldAction = null, transac
             await _updateConfigStart({ firstCheck, transaction: tx });
         }
 
-        tx.done();
+        await tx.done;
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };

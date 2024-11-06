@@ -69,7 +69,9 @@ const _updateConfigStart = async ({ firstCheck, transaction = null }) => {
 
         await _setConfigStart({ data, transaction: tx });
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -96,7 +98,9 @@ const _setConfigStart = async ({ data, transaction = null }) => {
         }
         return data;
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -122,7 +126,9 @@ const _setConfigField = async ({ key, value, transaction = null }) => {
         }
         return value;
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -147,7 +153,9 @@ const _getConfigStart = async ({ transaction = null }) => {
         }
         return result;
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -169,7 +177,9 @@ const _resetConfigStart = async ({ transaction = null }) => {
             await tx.done;
         }
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };

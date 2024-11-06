@@ -37,40 +37,58 @@
                             ref="input_category"
                             @keyup.enter="nextFocus('input_date', input_date)"
                         >
-                            <li class="button_add-category">
-                                <el-button
-                                    type="primary"
-                                    round
-                                    :icon="iconPlus"
-                                    @click="openCategoryDialog"
-                                >
-                                    Создать новую
-                                </el-button>
-                            </li>
-                            <el-option-group label="Расходы">
-                                <el-option
-                                    v-for="({ name, _id }, index) in categories?.expense"
-                                    :key="index"
-                                    :value="_id"
-                                    :label="name"
-                                ></el-option>
-                            </el-option-group>
-                            <el-option-group label="Доходы">
-                                <el-option
-                                    v-for="({ name, _id }, index) in categories?.income"
-                                    :key="index"
-                                    :value="_id"
-                                    :label="name"
-                                ></el-option>
-                            </el-option-group>
-                            <el-option-group label="Накопления">
-                                <el-option
-                                    v-for="({ name, _id }, index) in categories?.savings"
-                                    :key="index"
-                                    :value="_id"
-                                    :label="name"
-                                ></el-option>
-                            </el-option-group>
+                            <template v-if="categories">
+                                <li class="button_add-category">
+                                    <el-button
+                                        type="primary"
+                                        round
+                                        :icon="iconPlus"
+                                        @click="openCategoryDialog"
+                                    >
+                                        Создать новую
+                                    </el-button>
+                                </li>
+                                <el-option-group label="Расходы">
+                                    <el-option
+                                        v-for="{ name, _id } in categories[categoryStatusEnum.EXPENSE][
+                                            categoryTypeEnum.DEFAULT
+                                        ]"
+                                        :key="_id"
+                                        :value="_id"
+                                        :label="name"
+                                    ></el-option>
+                                </el-option-group>
+                                <el-option-group label="В накопления">
+                                    <el-option
+                                        v-for="{ name, _id } in categories[categoryStatusEnum.EXPENSE][
+                                            categoryTypeEnum.SAVINGS
+                                        ]"
+                                        :key="_id"
+                                        :value="_id"
+                                        :label="name"
+                                    ></el-option>
+                                </el-option-group>
+                                <el-option-group label="Доходы">
+                                    <el-option
+                                        v-for="{ name, _id } in categories[categoryStatusEnum.INCOME][
+                                            categoryTypeEnum.DEFAULT
+                                        ]"
+                                        :key="_id"
+                                        :value="_id"
+                                        :label="name"
+                                    ></el-option>
+                                </el-option-group>
+                                <el-option-group label="Из накоплений">
+                                    <el-option
+                                        v-for="{ name, _id } in categories[categoryStatusEnum.INCOME][
+                                            categoryTypeEnum.SAVINGS
+                                        ]"
+                                        :key="_id"
+                                        :value="_id"
+                                        :label="name"
+                                    ></el-option>
+                                </el-option-group>
+                            </template>
                         </el-select>
                     </el-form-item>
                 </div>
@@ -214,6 +232,7 @@
             <CategoriesForm
                 @call-to-end="handleCancelCategory"
                 class="dialog"
+                @update-category="emit('update-category')"
             />
         </el-dialog>
     </el-card>
@@ -230,6 +249,9 @@ import { watch } from 'vue';
 import router from '../router';
 import { ElMessage, ElMessageBox, ElNotification } from 'element-plus';
 import store from '../store';
+import dbController from '../services/db/controller';
+import { categoryStatusEnum, categoryTypeEnum } from '../services/constants';
+import formatHelper from '../services/helpers/formatHelper';
 
 const clearAction = {
     _id: undefined,
@@ -245,7 +267,7 @@ const props = defineProps({
         default: 'mini', // mini | full
     },
 });
-const emit = defineEmits(['call-to-end']);
+const emit = defineEmits(['call-to-end', 'update-action', 'update-category']);
 const attrs = useAttrs();
 
 const iconPlus = shallowRef(CirclePlusFilled);
@@ -278,24 +300,25 @@ const categoryDialog = ref(false);
 const isLightTheme = computed(() => {
     return attrs.class?.includes('light');
 });
-const categoriesStored = computed(() => {
-    return store.getters.getData('categories');
-});
-const categories = computed(() => {
-    const categories = {
-        income: [],
-        expense: [],
-        savings: [],
-    };
-    categoriesStored.value?.forEach(category => {
-        if (category.type === 'savings') return categories.savings.push(category);
-        if (category.status === 'income') return categories.income.push(category);
-        return categories.expense.push(category);
-    });
-    return categories;
-});
+// const categoriesStored = computed(() => {
+//     return store.getters.getData('categories');
+// });
+const categories = ref(null);
+// const categories = computed(() => {
+//     const categories = {
+//         income: [],
+//         expense: [],
+//         savings: [],
+//     };
+//     categoriesStored.value?.forEach(category => {
+//         if (category.type === 'savings') return categories.savings.push(category);
+//         if (category.status === 'income') return categories.income.push(category);
+//         return categories.expense.push(category);
+//     });
+//     return categories;
+// });
 const routeQuery = computed(() => {
-    return router.currentRoute.query;
+    return router.currentRoute.value.query;
 });
 
 const jumpRoute = path => {
@@ -307,13 +330,28 @@ const openFullForm = () => {
 const processAction = mode => {
     const process = async () => {
         try {
-            const actions = new Actions();
-            let changes;
-            if (mode === 'delete') changes = actions.delete(newAction.value._id);
-            if (mode === 'change') changes = actions.change(newAction.value);
-            if (mode === 'add') changes = actions.add(newAction.value);
+            // const actions = new Actions();
+            // let changes;
+            if (mode === 'delete') {
+                await dbController.deleteAction(newAction.value._id);
+            }
+            const params = {};
+            params.category_id = newAction.value.category_id;
+            params.sum = +newAction.value.sum;
+            params.date = formatHelper.getISODateString(newAction.value.date);
+            params.comment = newAction.value.comment || null;
+
+            if (mode === 'change') {
+                await dbController.setAction(params, newAction.value._id);
+            }
+            if (mode === 'add') {
+                await dbController.setAction(params);
+            }
             cancelAdding();
-            await store.dispatch('saveDataChanges', changes);
+            // await store.dispatch('saveDataChanges', changes);
+            console.log('proccessed');
+
+            emit('update-action');
             ElMessage({
                 type: 'success',
                 message: 'Сохранено',
@@ -358,13 +396,15 @@ const cancelAdding = () => {
     };
 };
 const readFromRouteQuery = () => {
-    if (!JSON.parse(router.currentRoute.query?.isEdit || 'false')) return;
+    if (!JSON.parse(router.currentRoute.value.query?.isEdit || 'false')) return;
     Object.keys(clearAction).forEach(field => {
-        newAction.value[field] = router.currentRoute.query[field];
+        newAction.value[field] = router.currentRoute.value.query[field];
+        newAction.value.sum = +router.currentRoute.value.query.sum;
     });
-    if (JSON.parse(router.currentRoute.query?.isEdit || 'false')) isEditMode.value = true;
+    if (JSON.parse(router.currentRoute.value.query?.isEdit || 'false')) isEditMode.value = true;
     else isEditMode.value = false;
     if (!newAction.value.date) newAction.value.date = new Date();
+    console.log(newAction.value);
 };
 const addSumPart = () => {
     if (!/-?\d+\.?\d*/.test(sumPart.value)) return;
@@ -393,13 +433,21 @@ const nextFocus = (name, ref) => {
     ) {
         return;
     }
-    ref.focus();
+    ref.focus?.();
+};
+
+const loadCategories = async () => {
+    try {
+        categories.value = await dbController.getCategoriesByGroups();
+    } catch (error) {
+        console.log(error);
+    }
 };
 
 watch(
     routeQuery,
     nv => {
-        // console.log(nv);
+        console.log(nv);
         readFromRouteQuery();
     },
     { deep: true }
@@ -419,6 +467,7 @@ watch(
 
 onMounted(() => {
     readFromRouteQuery();
+    loadCategories();
 });
 </script>
 <style scoped>

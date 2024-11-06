@@ -51,7 +51,9 @@ const _getCategory = async ({ _id, transaction = null }) => {
         }
         return record || null;
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -99,7 +101,9 @@ const _setCategory = async ({ data, _id = null, isAccounted = true, needUpdateTi
         }
         return record;
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -151,7 +155,9 @@ const _setInitialCategories = async ({ transaction = null }) => {
             await tx.done;
         }
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -172,7 +178,7 @@ const _setInitialCategories = async ({ transaction = null }) => {
 //             await tx.done;
 //         }
 //     } catch (error) {
-//         tx?.abort();
+//         try { tx?.abort(); } catch {}
 //         errorHelper.throwCustomOrInternal(error);
 //     }
 // };

@@ -5,7 +5,15 @@ import typeHelper from './typeHelper';
 function checkFields(data, fields) {
     const self = this;
 
-    return typeHelper.getIsObject(data) && fields.every(field => self.validator[field](data[field]));
+    return (
+        typeHelper.getIsObject(data) &&
+        fields.every(field => {
+            const isValid = self.validator[field](data[field]);
+            console.log('validate', field, data[field], isValid);
+
+            return isValid;
+        })
+    );
 }
 
 const schemaHelper = {

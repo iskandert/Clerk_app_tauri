@@ -43,7 +43,9 @@ const _setAction = async ({ data, _id = null, needUpdateTime = true, transaction
         }
         return record;
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -62,7 +64,9 @@ const _deleteAction = async ({ _id, transaction = null }) => {
             await tx.done;
         }
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };

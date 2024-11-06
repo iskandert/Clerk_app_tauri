@@ -26,7 +26,9 @@ const _getPlans = async ({ date, category_id, transaction = null }) => {
 
         return await store.index(CATEGORY_ID_AND_DATE_INDEX).getAll([category_id, date]);
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         throw errorHelper.create.internal();
     }
 };
@@ -74,7 +76,9 @@ const _setPlan = async ({ data, _id = null, needUpdateTime = true, transaction =
         }
         return record;
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -93,13 +97,15 @@ const _deletePlan = async ({ _id, transaction = null }) => {
             await tx.done;
         }
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
 
 const _updatePlanByAction = async ({ action, isDeleted, transaction = null }) => {
-    if (schemaHelper.action.checkEditableFields(action)) {
+    if (!schemaHelper.action.checkEditableFields(action)) {
         throw errorHelper.create.validation('_updatePlanByAction', { action, isDeleted });
     }
 

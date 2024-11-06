@@ -40,7 +40,9 @@ const getChecks = async () => {
         }
         return records;
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -87,7 +89,9 @@ const setCheck = async data => {
         await tx.done;
         return currentCheck;
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -127,7 +131,9 @@ const deleteCheck = async date => {
 
         await tx.done;
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };

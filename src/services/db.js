@@ -109,7 +109,9 @@ const setupInitialDB = async () => {
         await _setInitialConfigStart({ transaction: tx });
         await tx.done;
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -211,7 +213,9 @@ const fillDB = async data => {
 
         await tx.done;
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };

@@ -9,7 +9,7 @@ const getIsString = value => {
 };
 
 const getIsNumber = value => {
-    return typeof value === 'number';
+    return typeof value === 'number' && !isNaN(value);
 };
 
 const getIsPositiveNumber = value => {

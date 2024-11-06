@@ -47,7 +47,9 @@ const getCategoriesByGroups = async () => {
         await tx.done;
         return result;
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -63,7 +65,9 @@ const getCategoriesList = async () => {
         await tx.done;
         return records;
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -115,9 +119,11 @@ const setCategory = async (data, _id = null) => {
             transaction: tx,
         });
 
-        await tx.done();
+        await tx.done;
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };

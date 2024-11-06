@@ -53,9 +53,6 @@
                     </div>
                 </el-card>
             </div>
-            <div class="plans__container">
-                <el-card>Планы</el-card>
-            </div>
             <div class="actions__container">
                 <el-card>
                     <el-scrollbar max-height="calc(100vh - var(--header-height) - var(--footer-height) - 136px)">
@@ -145,6 +142,11 @@
                     class="light primary-shadow"
                     mode="full"
                     @call-to-end="handleCancelAction"
+                    @update-action="() => {
+                        loadActions();
+                        loadBalance();
+                    }"
+                    @update-category="loadCategories"
                 />
             </div>
         </div>
@@ -173,6 +175,8 @@
                 class="dialog"
                 mode="full"
                 @call-to-end="handleCancelAction"
+                @update-action="init"
+                @update-category="loadCategories"
             />
         </el-dialog>
 
@@ -201,6 +205,8 @@ import router from '../router';
 import { useRoute } from 'vue-router';
 import dbController from '../services/db/controller';
 import formatHelper from '../services/helpers/formatHelper';
+
+const route = useRoute();
 
 const iconPlus = shallowRef(CirclePlusFilled);
 const actionDialog = ref(false);
@@ -313,6 +319,8 @@ const loadBalance = async () => {
 };
 
 const init = async () => {
+    console.log('init actions');
+
     await loadCategories();
     await loadActions();
     await loadBalance();
@@ -323,7 +331,6 @@ watch(currentMonthFormatted, () => loadActions());
 onMounted(async () => {
     await init();
 
-    const route = useRoute();
     if (JSON.parse(route?.query?.mobile || 'false')) actionDialog.value = true;
 });
 </script>
@@ -351,7 +358,7 @@ onMounted(async () => {
 
 /* fixed .range__container on mobile */
 /* START */
-.plans__container {
+.actions__container {
     padding-top: 58px;
 }
 
@@ -510,13 +517,9 @@ onMounted(async () => {
         grid-template-columns: repeat(2, 1fr);
     }
 
-    .left-col > .plans__container {
-        display: none;
-    }
-
     /* normal .range__container on desktop */
     /* START */
-    .plans__container {
+    .actions__container {
         padding-top: 0;
     }
 

@@ -70,7 +70,9 @@ const getCurrentBalance = async () => {
         await tx.done;
         return result;
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -130,7 +132,9 @@ const getBalanceDynamic = async () => {
         await tx.done;
         return balances;
     } catch (error) {
-        tx?.abort();
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
