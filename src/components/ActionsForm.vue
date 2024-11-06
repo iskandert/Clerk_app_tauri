@@ -3,11 +3,7 @@
         <div class="form-container">
             <h5>
                 {{
-                    mode === 'mini'
-                        ? 'Быстрое добавление'
-                        : isEditMode
-                        ? 'Редактировать операцию'
-                        : 'Добавить операцию'
+                    mode === 'mini' ? 'Быстрое добавление' : isEditMode ? 'Редактировать операцию' : 'Добавить операцию'
                 }}
             </h5>
             <el-form
@@ -27,7 +23,7 @@
                             :step="100"
                             @change="sumPartsAll = []"
                             ref="input_sum"
-                            @keyup.enter="nextFocus('input_category')"
+                            @keyup.enter="nextFocus('input_category', input_category)"
                         />
                     </el-form-item>
                     <el-form-item
@@ -39,7 +35,7 @@
                             filterable
                             default-first-option
                             ref="input_category"
-                            @keyup.enter="nextFocus('input_date')"
+                            @keyup.enter="nextFocus('input_date', input_date)"
                         >
                             <li class="button_add-category">
                                 <el-button
@@ -95,7 +91,7 @@
                                 @visible-change="
                                     isVisible =>
                                         !isVisible
-                                            ? nextFocus(isEditMode ? 'button_change' : 'button_add')
+                                            ? nextFocus('sEditMode', sEditMode ? 'button_change' : 'button_add')
                                             : undefined
                                 "
                             />
@@ -143,9 +139,7 @@
                                 type="textarea"
                                 placeholder="Подробности операции"
                                 ref="input_comment"
-                                @keyup.enter="
-                                    nextFocus(isEditMode ? 'button_change' : 'button_add')
-                                "
+                                @keyup.enter="nextFocus('sEditMode', sEditMode ? 'button_change' : 'button_add')"
                             ></el-input>
                         </el-form-item>
                     </div>
@@ -188,7 +182,7 @@
                     round
                     ref="button_change"
                     id="button_change"
-                    @keyup.enter="nextFocus('input_sum')"
+                    @keyup.enter="nextFocus('input_sum', input_sum)"
                 >
                     Сохранить
                 </el-button>
@@ -200,7 +194,7 @@
                     round
                     ref="button_add"
                     id="button_add"
-                    @keyup.enter="nextFocus('input_sum')"
+                    @keyup.enter="nextFocus('input_sum', input_sum)"
                 >
                     Сохранить
                 </el-button>
@@ -224,13 +218,18 @@
         </el-dialog>
     </el-card>
 </template>
-<script>
+<script setup>
 import { CirclePlusFilled, Select, Delete, CloseBold } from '@element-plus/icons-vue';
-import { shallowRef } from 'vue';
+import { computed, ref, shallowRef, useAttrs } from 'vue';
 import { cloneByJSON, filterObject, notifyWrap } from '../services/utils';
 import { Actions } from '../services/changings';
 import InfoBalloon from '../components/InfoBalloon.vue';
 import CategoriesForm from './CategoriesForm.vue';
+import { onMounted } from 'vue';
+import { watch } from 'vue';
+import router from '../router';
+import { ElMessage, ElMessageBox, ElNotification } from 'element-plus';
+import store from '../store';
 
 const clearAction = {
     _id: undefined,
@@ -240,186 +239,187 @@ const clearAction = {
     comment: undefined,
 };
 
-export default {
-    components: {
-        InfoBalloon,
-        CategoriesForm,
+const props = defineProps({
+    mode: {
+        type: String,
+        default: 'mini', // mini | full
     },
-    props: {
-        mode: {
-            type: String,
-            default: 'mini', // mini | full
-        },
-    },
-    emits: ['call-to-end'],
-    setup() {
-        return {
-            iconPlus: shallowRef(CirclePlusFilled),
-            iconCheck: shallowRef(Select),
-            iconDelete: shallowRef(Delete),
-            iconCancel: shallowRef(CloseBold),
-        };
-    },
-    data() {
-        return {
-            newAction: {},
-            actionRules: {
-                sum: [{ required: true, message: 'Сумма - обязательное поле', trigger: 'blur' }],
-                category_id: [
-                    { required: true, message: 'Категория - обязательное поле', trigger: 'blur' },
-                ],
-                date: [{ required: true, message: 'Дата - обязательное поле', trigger: 'change' }],
-            },
-            isEditMode: false,
-            multipleSum: [],
-            sumPart: '',
-            sumPartsAll: [],
-            categoryDialog: false,
-        };
-    },
-    computed: {
-        isLightTheme() {
-            return this.$attrs.class?.includes('light');
-        },
-        categoriesStored() {
-            return this.$store.getters.getData('categories');
-        },
-        categories() {
-            const categories = {
-                income: [],
-                expense: [],
-                savings: [],
-            };
-            this.categoriesStored?.forEach(category => {
-                if (category.type === 'savings') return categories.savings.push(category);
-                if (category.status === 'income') return categories.income.push(category);
-                return categories.expense.push(category);
-            });
-            return categories;
-        },
-        routeQuery() {
-            return this.$route.query;
-        },
-    },
-    methods: {
-        jumpRoute(path) {
-            this.$router.push({ path });
-        },
-        openFullForm() {
-            this.$router.push({ path: '/actions', query: this.newAction });
-        },
-        processAction(mode) {
-            const process = async () => {
-                try {
-                    const actions = new Actions();
-                    let changes;
-                    if (mode === 'delete') changes = actions.delete(this.newAction._id);
-                    if (mode === 'change') changes = actions.change(this.newAction);
-                    if (mode === 'add') changes = actions.add(this.newAction);
-                    this.cancelAdding();
-                    await this.$store.dispatch('saveDataChanges', changes);
-                    this.$message({
-                        type: 'success',
-                        message: 'Сохранено',
-                    });
-                } catch (err) {
-                    notifyWrap(err);
-                }
-            };
-            if (mode === 'delete')
-                return this.$confirm('Восстановить операцию будет нельзя', 'Удалить операцию?', {
-                    confirmButtonText: 'Удалить',
-                    confirmButtonClass: 'el-button--danger',
-                })
-                    .then(process)
-                    .catch(err => err);
+});
+const emit = defineEmits(['call-to-end']);
+const attrs = useAttrs();
 
-            this.$refs.actionForm.validate(async valid => {
-                if (!valid) {
-                    this.$notify({
-                        title: 'Проверьте поля формы',
-                        type: 'error',
-                    });
-                    return false;
-                }
-                process();
-            });
-        },
-        cancelAdding() {
-            const savedValues = filterObject(this.newAction, (k, v) => {
-                return !this.isEditMode && ['date', 'category_id'].includes(k) && v;
-            });
-            this.isEditMode = false;
-            this.$emit('call-to-end');
-            console.log(savedValues);
-            this.newAction = cloneByJSON(clearAction);
-            this.newAction.date = new Date();
-            this.sumPart = '';
-            this.sumPartsAll = [];
-            this.newAction = {
-                ...this.newAction,
-                ...savedValues,
-            };
-        },
-        readFromRouteQuery() {
-            if (!JSON.parse(this.$route.query?.isEdit || 'false')) return;
-            Object.keys(clearAction).forEach(field => {
-                this.newAction[field] = this.$route.query[field];
-            });
-            if (JSON.parse(this.$route.query?.isEdit || 'false')) this.isEditMode = true;
-            else this.isEditMode = false;
-            if (!this.newAction.date) this.newAction.date = new Date();
-        },
-        addSumPart() {
-            if (!/-?\d+\.?\d*/.test(this.sumPart)) return;
-            this.sumPartsAll.push(this.sumPart);
-            this.sumPart = '';
-        },
-        deleteSumPart(index) {
-            this.sumPartsAll.splice(index, 1);
-        },
-        replaceSumPartValue(value) {
-            let result = value.replace(/(?<=^(-\d*)|(\d+))-|(?<=\d+\.\d*)[-\.]|[^-\d\.]|^\./g, '');
-            return result;
-        },
-        handleCancelCategory() {
-            this.categoryDialog = false;
-        },
-        openCategoryDialog() {
-            this.categoryDialog = true;
-        },
-        nextFocus(ref) {
-            if (
-                ['button_add', 'button_change'].includes(ref) &&
-                (!this.newAction.sum || !this.newAction.category_id || !this.newAction.date)
-            )
-                return;
-            this.$refs[ref]?.focus?.() || document.getElementById(ref)?.focus?.();
-        },
-    },
-    watch: {
-        routeQuery: {
-            handler(nv) {
-                // console.log(nv);
-                this.readFromRouteQuery();
-            },
-            deep: true,
-        },
-        sumPartsAll: {
-            handler(nv) {
-                if (!nv.length) return;
-                this.newAction.sum = nv.reduce((sum, curr) => {
-                    let part = Math.round(+curr * 100) / 100;
-                    return (sum += part);
-                }, 0);
-            },
-            deep: true,
-        },
-    },
-    mounted() {
-        this.readFromRouteQuery();
-    },
+const iconPlus = shallowRef(CirclePlusFilled);
+const iconCheck = shallowRef(Select);
+const iconDelete = shallowRef(Delete);
+const iconCancel = shallowRef(CloseBold);
+
+const newAction = ref({});
+
+const actionForm = ref(null);
+const input_sum = ref(null);
+const input_category = ref(null);
+const input_date = ref(null);
+const input_sumPart = ref(null);
+const input_comment = ref(null);
+const button_change = ref(null);
+const button_add = ref(null);
+
+const actionRules = {
+    sum: [{ required: true, message: 'Сумма - обязательное поле', trigger: 'blur' }],
+    category_id: [{ required: true, message: 'Категория - обязательное поле', trigger: 'blur' }],
+    date: [{ required: true, message: 'Дата - обязательное поле', trigger: 'change' }],
 };
+const isEditMode = ref(false);
+const multipleSum = ref([]);
+const sumPart = ref('');
+const sumPartsAll = ref([]);
+const categoryDialog = ref(false);
+
+const isLightTheme = computed(() => {
+    return attrs.class?.includes('light');
+});
+const categoriesStored = computed(() => {
+    return store.getters.getData('categories');
+});
+const categories = computed(() => {
+    const categories = {
+        income: [],
+        expense: [],
+        savings: [],
+    };
+    categoriesStored.value?.forEach(category => {
+        if (category.type === 'savings') return categories.savings.push(category);
+        if (category.status === 'income') return categories.income.push(category);
+        return categories.expense.push(category);
+    });
+    return categories;
+});
+const routeQuery = computed(() => {
+    return router.currentRoute.query;
+});
+
+const jumpRoute = path => {
+    router.push({ path });
+};
+const openFullForm = () => {
+    router.push({ path: '/actions', query: newAction.value });
+};
+const processAction = mode => {
+    const process = async () => {
+        try {
+            const actions = new Actions();
+            let changes;
+            if (mode === 'delete') changes = actions.delete(newAction.value._id);
+            if (mode === 'change') changes = actions.change(newAction.value);
+            if (mode === 'add') changes = actions.add(newAction.value);
+            cancelAdding();
+            await store.dispatch('saveDataChanges', changes);
+            ElMessage({
+                type: 'success',
+                message: 'Сохранено',
+            });
+        } catch (err) {
+            notifyWrap(err);
+        }
+    };
+    if (mode === 'delete')
+        return ElMessageBox.confirm('Восстановить операцию будет нельзя', 'Удалить операцию?', {
+            confirmButtonText: 'Удалить',
+            confirmButtonClass: 'el-button--danger',
+        })
+            .then(process)
+            .catch(err => err);
+
+    actionForm.value.validate(async valid => {
+        if (!valid) {
+            ElNotification({
+                title: 'Проверьте поля формы',
+                type: 'error',
+            });
+            return false;
+        }
+        process();
+    });
+};
+const cancelAdding = () => {
+    const savedValues = filterObject(newAction.value, (k, v) => {
+        return !isEditMode.value && ['date', 'category_id'].includes(k) && v;
+    });
+    isEditMode.value = false;
+    emit('call-to-end');
+    console.log(savedValues);
+    newAction.value = cloneByJSON(clearAction);
+    newAction.value.date = new Date();
+    sumPart.value = '';
+    sumPartsAll.value = [];
+    newAction.value = {
+        ...newAction.value,
+        ...savedValues,
+    };
+};
+const readFromRouteQuery = () => {
+    if (!JSON.parse(router.currentRoute.query?.isEdit || 'false')) return;
+    Object.keys(clearAction).forEach(field => {
+        newAction.value[field] = router.currentRoute.query[field];
+    });
+    if (JSON.parse(router.currentRoute.query?.isEdit || 'false')) isEditMode.value = true;
+    else isEditMode.value = false;
+    if (!newAction.value.date) newAction.value.date = new Date();
+};
+const addSumPart = () => {
+    if (!/-?\d+\.?\d*/.test(sumPart.value)) return;
+    sumPartsAll.value.push(sumPart.value);
+    sumPart.value = '';
+};
+const deleteSumPart = index => {
+    sumPartsAll.value.splice(index, 1);
+};
+const replaceSumPartValue = value => {
+    let result = value.replace(/(?<=^(-\d*)|(\d+))-|(?<=\d+\.\d*)[-\.]|[^-\d\.]|^\./g, '');
+    return result;
+};
+const handleCancelCategory = () => {
+    categoryDialog.value = false;
+};
+const openCategoryDialog = () => {
+    categoryDialog.value = true;
+};
+const nextFocus = (name, ref) => {
+    console.log(ref);
+
+    if (
+        ['button_add', 'button_change'].includes(name) &&
+        (!newAction.value.sum || !newAction.value.category_id || !newAction.value.date)
+    ) {
+        return;
+    }
+    ref.focus();
+};
+
+watch(
+    routeQuery,
+    nv => {
+        // console.log(nv);
+        readFromRouteQuery();
+    },
+    { deep: true }
+);
+
+watch(
+    sumPartsAll,
+    nv => {
+        if (!nv.length) return;
+        newAction.value.sum = nv.reduce((sum, curr) => {
+            let part = Math.round(+curr * 100) / 100;
+            return (sum += part);
+        }, 0);
+    },
+    { deep: true }
+);
+
+onMounted(() => {
+    readFromRouteQuery();
+});
 </script>
 <style scoped>
 .form-container {
