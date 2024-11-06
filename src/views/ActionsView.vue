@@ -73,15 +73,23 @@
                                 >
                                     <div class="icon"></div>
                                     <div class="text">
+                                        <template v-if="categoriesById[action.category_id]._isEditable">
+                                            <div
+                                                class="category desktop-only el-link el-link--default is-underline"
+                                                @click="callEditAction(action)"
+                                            >
+                                                {{ categoriesById[action.category_id].name }}
+                                            </div>
+                                            <div
+                                                class="category mobile-only el-link el-link--default is-underline"
+                                                @click="callEditAction(action, true)"
+                                            >
+                                                {{ categoriesById[action.category_id].name }}
+                                            </div>
+                                        </template>
                                         <div
-                                            class="category desktop-only el-link el-link--default is-underline"
-                                            @click="callEditAction(action)"
-                                        >
-                                            {{ categoriesById[action.category_id].name }}
-                                        </div>
-                                        <div
-                                            class="category mobile-only el-link el-link--default is-underline"
-                                            @click="callEditAction(action, true)"
+                                            v-else
+                                            class="category not-editable el-link"
                                         >
                                             {{ categoriesById[action.category_id].name }}
                                         </div>
@@ -142,10 +150,12 @@
                     class="light primary-shadow"
                     mode="full"
                     @call-to-end="handleCancelAction"
-                    @update-action="() => {
-                        loadActions();
-                        loadBalance();
-                    }"
+                    @update-action="
+                        () => {
+                            loadActions();
+                            loadBalance();
+                        }
+                    "
                     @update-category="loadCategories"
                 />
             </div>
@@ -443,6 +453,9 @@ onMounted(async () => {
     font-weight: bold;
     display: block;
     width: max-content;
+}
+.action > .text > .category.not-editable {
+    pointer-events: none;
 }
 
 .action > .text > .comment {

@@ -88,6 +88,31 @@ const getCategory = async _id => {
     }
 };
 
+const getIsEmptyCategory = async _id => {
+    if (!_id || !schemaHelper.category.validator._id(_id)) {
+        throw errorHelper.create.validation('getIsEmptyCategory', { _id });
+    }
+
+    let tx;
+
+    try {
+        const db = getDBInstanse();
+        tx = db.transaction([ACTIONS_STORE_NAME, PLANS_STORE_NAME], READONLY);
+
+        const actionsStore = tx.objectStore(ACTIONS_STORE_NAME);
+        const plansStore = tx.objectStore(PLANS_STORE_NAME);
+
+        const actions = await actionsStore.getAll();
+        const plans = await plansStore.getAll();
+
+        const count = [...actions, ...plans].filter(({ category_id }) => category_id === _id).length;
+
+        return !count;
+    } catch (error) {
+        errorHelper.throwCustomOrInternal(error);
+    }
+};
+
 const setCategory = async (data, _id = null) => {
     if (!schemaHelper.category.checkEditableFields(data) || (_id && !schemaHelper.category.validator._id(_id))) {
         throw errorHelper.create.validation('setCategory', { data, _id });
@@ -159,5 +184,6 @@ export {
     getCategoriesList,
     getCategory,
     setCategory,
+    getIsEmptyCategory,
     // deleteCategory,
 };

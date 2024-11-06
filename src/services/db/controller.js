@@ -1,6 +1,12 @@
 import db from '../db';
 import { deleteAction, getAction, getActionsListByMonth, setAction } from './model/actions';
-import { getCategoriesByGroups, getCategoriesList, getCategory, setCategory } from './model/categories';
+import {
+    getCategoriesByGroups,
+    getCategoriesList,
+    getCategory,
+    getIsEmptyCategory,
+    setCategory,
+} from './model/categories';
 import { deleteCheck, getCheck, getChecks, setCheck } from './model/checks';
 import { getBalanceDynamic, getCurrentBalance } from './model/config';
 import {
@@ -31,6 +37,7 @@ const dbController = {
     getCategoriesList,
     getCategory,
     setCategory,
+    getIsEmptyCategory,
     getChecks,
     getCheck,
     setCheck,
@@ -43,9 +50,9 @@ const dbController = {
     extendPlans,
     deletePlans,
     deletePlan,
-    recalcPlansOfMonth,
+    recalcPlansOfMonth: date => recalcPlansOfMonth(date),
     getPlansMatrix,
-    ensurePastPlans,
+    ensurePastPlans: () => ensurePastPlans(),
 };
 
 export default dbController;

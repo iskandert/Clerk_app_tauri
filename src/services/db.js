@@ -203,7 +203,7 @@ const fillDB = async data => {
         );
 
         if (isV0) {
-            await ensurePastPlans();
+            await ensurePastPlans(tx);
 
             const firstCheck = await _getCheckFirst({ transaction: tx });
             if (firstCheck) {

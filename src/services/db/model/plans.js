@@ -273,15 +273,16 @@ const recalcPlansOfCurrentMonth = async () => {
     await recalcPlansOfMonth(formatHelper.getISOYearMonthString());
 };
 
-const recalcPlansOfMonth = async date => {
+const recalcPlansOfMonth = async (date, transaction = null) => {
     if (!schemaHelper.plan.validator.date(date)) {
         throw errorHelper.create.validation('recalcPlansOfMonth', { date });
     }
 
-    let tx;
+    let tx = transaction;
     try {
         const db = getDBInstanse();
-        tx = db.transaction([PLANS_STORE_NAME, ACTIONS_STORE_NAME], READWRITE);
+        tx ||= db.transaction([PLANS_STORE_NAME, ACTIONS_STORE_NAME], READWRITE);
+        const plansCategoryIdAndDateIndex = tx.objectStore(PLANS_STORE_NAME).index(CATEGORY_ID_AND_DATE_INDEX);
         const plansDateIndex = tx.objectStore(PLANS_STORE_NAME).index(DATE_INDEX);
         const actionsDateIndex = tx.objectStore(ACTIONS_STORE_NAME).index(DATE_INDEX);
         const actions = await actionsDateIndex.getAll(
@@ -301,25 +302,39 @@ const recalcPlansOfMonth = async date => {
         });
 
         const plans = await plansDateIndex.getAll(date);
+        const unprocessedPlanIds = new Set(plans.map(({ _id }) => _id));
 
         await Promise.all(
-            plans.map(async plan => {
-                if (!actionsSum[plan.category_id]) {
-                    await _deletePlan({ _id: plan._id, transaction: tx });
+            Object.keys(actionsSum).map(async category_id => {
+                const plan = await plansCategoryIdAndDateIndex.get([category_id, date]);
+                const _id = plan?._id || null;
+                unprocessedPlanIds.delete(_id);
+
+                if (!actionsSum[category_id] && plan) {
+                    await _deletePlan({ _id, transaction: tx });
                 } else {
                     await _setPlan({
                         data: {
-                            ...plan,
-                            sum: actionsSum[plan.category_id],
+                            category_id,
+                            date,
+                            comment: plan?.comment || null,
+                            sum: actionsSum[category_id],
                         },
-                        _id: plan._id,
+                        _id,
                         transaction: tx,
                     });
                 }
             })
         );
 
-        await tx.done;
+        await Promise.all(
+            Array.from(unprocessedPlanIds).map(async _id => {
+                await _deletePlan({ _id, transaction: tx });
+            })
+        );
+        if (!transaction) {
+            await tx.done;
+        }
     } catch (error) {
         try {
             tx?.abort();
@@ -372,21 +387,24 @@ const getPlansMatrix = async () => {
     }
 };
 
-const ensurePastPlans = async () => {
-    let tx;
+const ensurePastPlans = async (transaction = null) => {
+    let tx = transaction;
     try {
         const db = getDBInstanse();
-        tx = db.transaction([ACTIONS_STORE_NAME, PLANS_STORE_NAME], READWRITE);
+        tx ||= db.transaction([ACTIONS_STORE_NAME, PLANS_STORE_NAME], READWRITE);
         // const plansIndex = tx.objectStore(PLANS_STORE_NAME).index(CATEGORY_ID_AND_DATE_INDEX);
-        const plansIndex = tx.objectStore(PLANS_STORE_NAME).index(DATE_INDEX);
         // const actionsIndex = tx.objectStore(ACTIONS_STORE_NAME).index(CATEGORY_ID_AND_DATE_INDEX);
 
-        const dates = await plansIndex.getAllKeys();
+        // const plansIndex = tx.objectStore(PLANS_STORE_NAME).index(DATE_INDEX);
+        const plansStore = tx.objectStore(PLANS_STORE_NAME);
+        const plans = await plansStore.getAll();
+        const dates = new Set(plans.map(({ date }) => date));
+
         await Promise.all(
-            dates.map(async date => {
+            Array.from(dates).map(async date => {
                 // const [category_id, date] = key;
                 if (date >= formatHelper.getISOYearMonthString()) return;
-                await recalcPlansOfMonth(date);
+                await recalcPlansOfMonth(date, tx);
 
                 // const plan = await plansIndex.get(key);
                 // const lastDate = formatHelper.getISODateString(dayjs(date).date(1).add(1, 'month').subtract(1, 'day'));
@@ -408,6 +426,9 @@ const ensurePastPlans = async () => {
                 // }
             })
         );
+        if (!transaction) {
+            await tx.done;
+        }
     } catch (error) {
         try {
             tx?.abort();

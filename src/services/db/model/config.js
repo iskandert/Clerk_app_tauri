@@ -83,7 +83,8 @@ const getBalanceDynamic = async () => {
         const db = getDBInstanse();
         tx = db.transaction(db.objectStoreNames, READONLY);
         const categoriesStore = tx.objectStore(CATEGORIES_STORE_NAME);
-        const plansDateIndex = tx.objectStore(PLANS_STORE_NAME).index(DATE_INDEX);
+        const plansStore = tx.objectStore(PLANS_STORE_NAME);
+        const plansDateIndex = plansStore.index(DATE_INDEX);
 
         const categories = await categoriesStore.getAll();
         const categoriesByIds = categories.reduce((acc, curr) => {
@@ -91,7 +92,9 @@ const getBalanceDynamic = async () => {
             return acc;
         }, {});
 
-        const dates = await plansDateIndex.getAllKeys();
+        const plans = await plansStore.getAll();
+        const dates = Array.from(new Set(plans.map(({ date }) => date)));
+
         const startDate = dates[0];
         const endDate = dates.at(-1);
 

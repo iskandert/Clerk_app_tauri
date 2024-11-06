@@ -19,8 +19,8 @@
                     prop="status"
                 >
                     <el-radio-group v-model="newCategory.status">
-                        <el-radio label="income">Доходы</el-radio>
-                        <el-radio label="expense">Расходы</el-radio>
+                        <el-radio :value="categoryStatusEnum.INCOME">Доходы</el-radio>
+                        <el-radio :value="categoryStatusEnum.EXPENSE">Расходы</el-radio>
                     </el-radio-group>
                 </el-form-item>
                 <el-form-item
@@ -37,8 +37,8 @@
                         />
                     </template>
                     <el-radio-group v-model="newCategory.type">
-                        <el-radio label="default">Обычная</el-radio>
-                        <el-radio label="savings">Накопления</el-radio>
+                        <el-radio :value="categoryTypeEnum.DEFAULT">Обычная</el-radio>
+                        <el-radio :value="categoryTypeEnum.SAVINGS">Накопления</el-radio>
                     </el-radio-group>
                 </el-form-item>
             </div>
@@ -102,30 +102,48 @@
                             v-model="newCategory.redefined_category_id"
                             filterable
                         >
-                            <el-option-group label="Расходы">
-                                <el-option
-                                    v-for="({ name, _id }, index) in categories?.expense"
-                                    :key="index"
-                                    :value="_id"
-                                    :label="name"
-                                ></el-option>
-                            </el-option-group>
-                            <el-option-group label="Доходы">
-                                <el-option
-                                    v-for="({ name, _id }, index) in categories?.income"
-                                    :key="index"
-                                    :value="_id"
-                                    :label="name"
-                                ></el-option>
-                            </el-option-group>
-                            <el-option-group label="Накопления">
-                                <el-option
-                                    v-for="({ name, _id }, index) in categories?.savings"
-                                    :key="index"
-                                    :value="_id"
-                                    :label="name"
-                                ></el-option>
-                            </el-option-group>
+                            <template v-if="categories">
+                                <el-option-group label="Расходы">
+                                    <el-option
+                                        v-for="{ name, _id } in categories[categoryStatusEnum.EXPENSE][
+                                            categoryTypeEnum.DEFAULT
+                                        ]"
+                                        :key="_id"
+                                        :value="_id"
+                                        :label="name"
+                                    ></el-option>
+                                </el-option-group>
+                                <el-option-group label="В накопления">
+                                    <el-option
+                                        v-for="{ name, _id } in categories[categoryStatusEnum.EXPENSE][
+                                            categoryTypeEnum.SAVINGS
+                                        ]"
+                                        :key="_id"
+                                        :value="_id"
+                                        :label="name"
+                                    ></el-option>
+                                </el-option-group>
+                                <el-option-group label="Доходы">
+                                    <el-option
+                                        v-for="{ name, _id } in categories[categoryStatusEnum.INCOME][
+                                            categoryTypeEnum.DEFAULT
+                                        ]"
+                                        :key="_id"
+                                        :value="_id"
+                                        :label="name"
+                                    ></el-option>
+                                </el-option-group>
+                                <el-option-group label="Из накоплений">
+                                    <el-option
+                                        v-for="{ name, _id } in categories[categoryStatusEnum.INCOME][
+                                            categoryTypeEnum.SAVINGS
+                                        ]"
+                                        :key="_id"
+                                        :value="_id"
+                                        :label="name"
+                                    ></el-option>
+                                </el-option-group>
+                            </template>
                         </el-select>
                     </el-form-item>
                 </el-form>
@@ -150,12 +168,17 @@
         </el-dialog>
     </div>
 </template>
-<script>
+<script setup>
 import { CirclePlusFilled, Select, Delete, CloseBold } from '@element-plus/icons-vue';
-import { shallowRef } from 'vue';
+import { computed, onMounted, ref, shallowRef } from 'vue';
 import { cloneByJSON, notifyWrap } from '../services/utils';
 import { Categories } from '../services/changings';
 import InfoBalloon from '../components/InfoBalloon.vue';
+import { categoryStatusEnum, categoryTypeEnum } from '../services/constants';
+import router from '../router';
+import { ElMessage, ElMessageBox, ElNotification } from 'element-plus';
+import store from '../store';
+import dbController from '../services/db/controller';
 
 const clearCategory = {
     _id: undefined,
@@ -164,185 +187,170 @@ const clearCategory = {
     type: undefined,
 };
 
-export default {
-    components: {
-        InfoBalloon,
-    },
-    props: {},
-    emits: ['call-to-end'],
-    setup() {
-        return {
-            iconPlus: shallowRef(CirclePlusFilled),
-            iconCheck: shallowRef(Select),
-            iconDelete: shallowRef(Delete),
-            iconCancel: shallowRef(CloseBold),
-        };
-    },
-    data() {
-        return {
-            newCategory: {},
-            categoryRules: {
-                name: [
-                    { required: true, message: 'Название - обязательное поле', trigger: 'blur' },
-                ],
-                status: [
-                    {
-                        required: true,
-                        message: 'Направление финансов - обязательное поле',
-                        trigger: 'blur',
-                    },
-                ],
-                type: [
-                    {
-                        required: true,
-                        message: 'Тип категории - обязательное поле',
-                        trigger: 'blur',
-                    },
-                ],
-            },
-            isEditMode: false,
-            redefiningDialog: false,
-            redefiningRules: {
-                redefined_category_id: [
-                    {
-                        required: true,
-                        message: 'Нужно выбрать категорию для переназначения',
-                        trigger: 'blur',
-                    },
-                ],
-            },
-        };
-    },
-    computed: {
-        categoriesStored() {
-            return this.$store.getters.getData('categories');
-        },
-        categories() {
-            const categories = {
-                income: [],
-                expense: [],
-                savings: [],
-            };
-            this.categoriesStored?.forEach(category => {
-                if (category.type === 'savings') return categories.savings.push(category);
-                if (category.status === 'income') return categories.income.push(category);
-                return categories.expense.push(category);
-            });
-            return categories;
-        },
-    },
-    methods: {
-        jumpRoute(path) {
-            this.$router.push({ path });
-        },
-        readFromRouteQuery() {
-            Object.keys(clearCategory).forEach(field => {
-                this.newCategory[field] = this.$route.query[field];
-            });
-            if (JSON.parse(this.$route.query?.isEdit || 'false')) this.isEditMode = true;
-            else this.isEditMode = false;
-        },
-        // category editing
-        async processCategory(mode) {
-            const process = async () => {
-                try {
-                    const categories = new Categories();
-                    let changes;
-                    if (mode === 'delete') return;
-                    // TODO не работает
-                        // changes = categories.delete(this.newCategory._id, this.newCategory);
-                    if (mode === 'change') changes = categories.change(this.newCategory);
-                    if (mode === 'add') changes = categories.add(this.newCategory);
-                    this.cancelProcessing();
-                    await this.$store.dispatch('saveDataChanges', changes);
-                    this.$message({
-                        type: 'success',
-                        message: 'Сохранено',
-                    });
-                } catch (err) {
-                    notifyWrap(err);
-                }
-            };
-            if (mode === 'delete') {
-                const showDeletingConfirm = () =>
-                    this.$confirm('Восстановить категорию будет нельзя', 'Удалить категорию?', {
-                        confirmButtonText: 'Удалить',
-                        confirmButtonClass: 'el-button--danger',
-                    })
-                        .then(process)
-                        .catch(err => err);
+const emit = defineEmits(['call-to-end', 'update-category']);
+const iconPlus = shallowRef(CirclePlusFilled);
+const iconCheck = shallowRef(Select);
+const iconDelete = shallowRef(Delete);
+const iconCancel = shallowRef(CloseBold);
 
-                if (this.newCategory.redefined_category_id) return showDeletingConfirm();
+const categoryForm = ref(null);
+const redefiningForm = ref(null);
 
-                const isNotEmptyCategory = !![
-                    ...this.$store.getters.getData('plans'),
-                    ...this.$store.getters.getData('actions'),
-                ].find(({ category_id }) => category_id === this.newCategory._id);
-
-                if (isNotEmptyCategory)
-                    return this.$confirm(
-                        `Переназначить категорию для планов и операций удаляемой категории?`,
-                        `Категория "${this.newCategory.name}" не пустая`,
-                        {
-                            distinguishCancelAndClose: true,
-                            confirmButtonText: 'Выбрать категорию',
-                            cancelButtonText: 'Удалить с содержимым',
-                            cancelButtonClass: 'el-button--danger',
-                        }
-                    )
-                        .then(() => {
-                            this.openRedefiningDialog();
-                        })
-                        .catch(action => {
-                            if (action !== 'cancel') return;
-                            showDeletingConfirm();
-                        });
-
-                return showDeletingConfirm();
-            }
-
-            this.$refs.categoryForm.validate(async valid => {
-                if (!valid) {
-                    this.$notify({
-                        title: 'Проверьте поля формы',
-                        type: 'error',
-                    });
-                    return false;
-                }
-                process();
-            });
+const newCategory = ref({});
+const categoryRules = {
+    name: [{ required: true, message: 'Название - обязательное поле', trigger: 'blur' }],
+    status: [
+        {
+            required: true,
+            message: 'Направление финансов - обязательное поле',
+            trigger: 'blur',
         },
-        cancelProcessing() {
-            this.$emit('call-to-end');
+    ],
+    type: [
+        {
+            required: true,
+            message: 'Тип категории - обязательное поле',
+            trigger: 'blur',
         },
-        // category redefining
-        openRedefiningDialog() {
-            this.redefiningDialog = true;
-        },
-        handleCancelRedefining() {
-            this.redefiningDialog = false;
-        },
-        callRedefining() {
-            this.openRedefiningDialog();
-        },
-        redefineAndDelete() {
-            this.$refs.redefiningForm.validate(async valid => {
-                if (!valid) {
-                    this.$notify({
-                        title: 'Проверьте поля формы',
-                        type: 'error',
-                    });
-                    return false;
-                }
-                this.processCategory('delete');
-            });
-        },
-    },
-    watch: {},
-    mounted() {
-        this.readFromRouteQuery();
-    },
+    ],
 };
+const isEditMode = ref(false);
+const redefiningDialog = ref(false);
+const redefiningRules = {
+    redefined_category_id: [
+        {
+            required: true,
+            message: 'Нужно выбрать категорию для переназначения',
+            trigger: 'blur',
+        },
+    ],
+};
+
+const categories = ref(null);
+
+const jumpRoute = path => {
+    router.push({ path });
+};
+const readFromRouteQuery = () => {
+    Object.keys(clearCategory).forEach(field => {
+        newCategory.value[field] = router.currentRoute.value.query[field];
+    });
+    if (JSON.parse(router.currentRoute.value.query?.isEdit || 'false')) isEditMode.value = true;
+    else isEditMode.value = false;
+};
+// category editing
+const processCategory = async mode => {
+    const process = async () => {
+        try {
+            const categories = new Categories();
+            let changes;
+            if (mode === 'delete') {
+                return;
+                // TODO не работает
+                // changes = categories.delete(newCategory.value._id, newCategory.value);
+            }
+            if (mode === 'change') {
+                await dbController.setCategory(newCategory.value, newCategory.value._id);
+            }
+            if (mode === 'add') {
+                await dbController.setCategory(newCategory.value);
+            }
+            emit('update-category');
+            cancelProcessing();
+
+            loadCategories();
+            ElMessage({
+                type: 'success',
+                message: 'Сохранено',
+            });
+        } catch (err) {
+            notifyWrap(err);
+        }
+    };
+    if (mode === 'delete') {
+        const showDeletingConfirm = () =>
+            ElMessageBox.confirm('Восстановить категорию будет нельзя', 'Удалить категорию?', {
+                confirmButtonText: 'Удалить',
+                confirmButtonClass: 'el-button--danger',
+            })
+                .then(process)
+                .catch(err => err);
+
+        if (newCategory.value.redefined_category_id) return showDeletingConfirm();
+
+        const isEmptyCategory = await dbController.getIsEmptyCategory(newCategory.value._id);
+
+        if (!isEmptyCategory)
+            return ElMessageBox.confirm(
+                `Переназначить категорию для планов и операций удаляемой категории?`,
+                `Категория "${newCategory.value.name}" не пустая`,
+                {
+                    distinguishCancelAndClose: true,
+                    confirmButtonText: 'Выбрать категорию',
+                    cancelButtonText: 'Удалить с содержимым',
+                    cancelButtonClass: 'el-button--danger',
+                }
+            )
+                .then(() => {
+                    openRedefiningDialog();
+                })
+                .catch(action => {
+                    if (action !== 'cancel') return;
+                    showDeletingConfirm();
+                });
+
+        return showDeletingConfirm();
+    }
+
+    categoryForm.value.validate(async valid => {
+        if (!valid) {
+            ElNotification({
+                title: 'Проверьте поля формы',
+                type: 'error',
+            });
+            return false;
+        }
+        process();
+    });
+};
+const cancelProcessing = () => {
+    emit('call-to-end');
+};
+// category redefining
+const openRedefiningDialog = () => {
+    redefiningDialog.value = true;
+};
+const handleCancelRedefining = () => {
+    redefiningDialog.value = false;
+};
+const callRedefining = () => {
+    openRedefiningDialog();
+};
+const redefineAndDelete = () => {
+    redefiningForm.value.validate(async valid => {
+        if (!valid) {
+            ElNotification({
+                title: 'Проверьте поля формы',
+                type: 'error',
+            });
+            return false;
+        }
+        processCategory('delete');
+    });
+};
+
+const loadCategories = async () => {
+    try {
+        categories.value = await dbController.getCategoriesByGroups();
+    } catch (error) {
+        console.log(error);
+    }
+};
+
+onMounted(() => {
+    readFromRouteQuery();
+    loadCategories();
+});
 </script>
 <style scoped>
 .form-container {

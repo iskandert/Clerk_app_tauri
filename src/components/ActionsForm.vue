@@ -300,23 +300,9 @@ const categoryDialog = ref(false);
 const isLightTheme = computed(() => {
     return attrs.class?.includes('light');
 });
-// const categoriesStored = computed(() => {
-//     return store.getters.getData('categories');
-// });
+
 const categories = ref(null);
-// const categories = computed(() => {
-//     const categories = {
-//         income: [],
-//         expense: [],
-//         savings: [],
-//     };
-//     categoriesStored.value?.forEach(category => {
-//         if (category.type === 'savings') return categories.savings.push(category);
-//         if (category.status === 'income') return categories.income.push(category);
-//         return categories.expense.push(category);
-//     });
-//     return categories;
-// });
+
 const routeQuery = computed(() => {
     return router.currentRoute.value.query;
 });

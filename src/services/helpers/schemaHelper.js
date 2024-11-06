@@ -9,7 +9,7 @@ function checkFields(data, fields) {
         typeHelper.getIsObject(data) &&
         fields.every(field => {
             const isValid = self.validator[field](data[field]);
-            console.log('validate', field, data[field], isValid);
+            // console.log('validate', field, data[field], isValid);
 
             return isValid;
         })

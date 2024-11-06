@@ -181,23 +181,19 @@ const _updateUnaccountedByAction = async ({ action, isDeleted = false, transacti
             transaction: tx,
             isIncludeNow: true,
         });
-        const prevCheck = await _getCheckPrev({
-            date: action.date,
-            transaction: tx,
-        });
-        if (!nextCheck || !prevCheck) return null;
+        if (!nextCheck) return null;
 
         const categoriesStore = tx.objectStore(CATEGORIES_STORE_NAME);
         const category = await categoriesStore.get(action.category_id);
         if (!category) return null;
 
         const oppositeStatus =
-            action.status === categoryStatusEnum.EXPENSE ? categoryStatusEnum.INCOME : categoryStatusEnum.EXPENSE;
+            category.status === categoryStatusEnum.EXPENSE ? categoryStatusEnum.INCOME : categoryStatusEnum.EXPENSE;
 
         const result = await _setUnaccountedAction({
             date: nextCheck.date,
             sum: action.sum,
-            status: !isDeleted ? oppositeStatus : action.status,
+            status: !isDeleted ? oppositeStatus : category.status,
             type: category.type,
             transaction: tx,
         });

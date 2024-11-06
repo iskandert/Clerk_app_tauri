@@ -212,7 +212,7 @@ const _updateDataByAction = async ({ newAction = null, oldAction = null, transac
             });
 
             await _updateUnaccountedByAction({
-                action: oldAction,
+                action: newAction,
                 isDeleted: false,
                 transaction: tx,
             });

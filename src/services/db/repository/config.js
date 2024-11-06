@@ -36,10 +36,10 @@ const _updateConfigStart = async ({ firstCheck, transaction = null }) => {
     try {
         const db = getDBInstanse();
         tx ||= db.transaction(db.objectStoreNames, READWRITE);
-        const actionsStore = tx.objectStore(ACTIONS_STORE_NAME);
+        const actionsIndex = tx.objectStore(ACTIONS_STORE_NAME).index(DATE_INDEX);
         const categoriesStore = tx.objectStore(CATEGORIES_STORE_NAME);
 
-        const prevActions = await actionsStore.getAll(IDBKeyRange.upperBound(firstCheck.date));
+        const prevActions = await actionsIndex.getAll(IDBKeyRange.upperBound(firstCheck.date));
         const categories = await categoriesStore.getAll();
         const categoriesByIds = categories.reduce((acc, curr) => {
             acc[curr._id] = curr;
