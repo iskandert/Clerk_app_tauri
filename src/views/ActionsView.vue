@@ -390,6 +390,9 @@ const loadChecks = async () => {
             return acc;
         }, {});
     } catch (error) {
+        if (error.isNotFound) {
+            checks.value = {};
+        }
         console.log(error);
     }
 };
@@ -580,7 +583,7 @@ onMounted(async () => {
     font-size: 14px;
 }
 .row-balance > .count > span:nth-child(1) {
-    color: var(--el-color-success);
+    color: var(--el-color-info);
 }
 .row-balance > .count > span:nth-child(2) {
     font-weight: bold;

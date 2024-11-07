@@ -7,7 +7,7 @@ const create = {
 };
 
 const getIsCustomError = error => {
-    Object.keys(error).some(key => Object.values(errorEnum).includes(key));
+    return Object.keys(error).some(key => Object.values(errorEnum).includes(key));
 };
 
 const throwCustomOrInternal = error => {

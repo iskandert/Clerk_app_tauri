@@ -81,6 +81,7 @@ const setCheck = async data => {
             await _updateUnaccountedByDate({ date: currentCheck.date, transaction: tx });
         } else {
             await _updateConfigStart({ firstCheck: data, transaction: tx });
+            await _deleteUnaccountedByDate({ date: currentCheck.date, transaction: tx });
         }
         if (nextCheck) {
             await _updateUnaccountedByDate({ date: nextCheck.date, transaction: tx });

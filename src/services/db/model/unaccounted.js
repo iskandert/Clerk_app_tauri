@@ -181,7 +181,13 @@ const _updateUnaccountedByAction = async ({ action, isDeleted = false, transacti
             transaction: tx,
             isIncludeNow: true,
         });
-        if (!nextCheck) return null;
+        const prevCheck = await _getCheckPrev({
+            date: action.date,
+            transaction: tx,
+        });
+        if (!nextCheck || !prevCheck) {
+            return null;
+        }
 
         const categoriesStore = tx.objectStore(CATEGORIES_STORE_NAME);
         const category = await categoriesStore.get(action.category_id);

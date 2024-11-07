@@ -49,10 +49,19 @@
         </el-form>
         <div class="form-buttons">
             <el-button
-                type="primary"
-                @click="checkConfig"
-                :icon="iconCheck"
+                v-if="date"
+                :icon="iconDelete"
+                type="danger"
                 round
+                @click="deleteCheck"
+            >
+                Удалить
+            </el-button>
+            <el-button
+                :icon="iconCheck"
+                type="primary"
+                round
+                @click="setCheck"
             >
                 Сохранить
             </el-button>
@@ -60,12 +69,12 @@
     </div>
 </template>
 <script setup>
-import { Select } from '@element-plus/icons-vue';
+import { Delete, Select } from '@element-plus/icons-vue';
 import { onMounted, ref, shallowRef } from 'vue';
 import { cloneByJSON, notifyWrap } from '../services/utils';
 import { Config } from '../services/changings';
 import InfoBalloon from '../components/InfoBalloon.vue';
-import { ElMessage, ElNotification } from 'element-plus';
+import { ElMessage, ElMessageBox, ElNotification } from 'element-plus';
 import dbController from '../services/db/controller';
 import formatHelper from '../services/helpers/formatHelper';
 
@@ -85,6 +94,7 @@ const props = defineProps({
 const emit = defineEmits(['call-to-end', 'update-check']);
 
 const iconCheck = shallowRef(Select);
+const iconDelete = shallowRef(Delete);
 const isDataReady = ref(false);
 const checkForm = ref(null);
 const newCheck = ref({});
@@ -94,7 +104,7 @@ const checkRules = {
     checking_date: [{ required: true, message: 'Дата - обязательное поле', trigger: 'change' }],
 };
 
-const checkConfig = () => {
+const setCheck = () => {
     checkForm.value.validate(async valid => {
         if (!valid) {
             ElNotification({
@@ -120,6 +130,27 @@ const checkConfig = () => {
             notifyWrap(err);
         }
     });
+};
+
+const deleteCheck = async () => {
+    ElMessageBox.confirm('Восстановить сверку будет нельзя', 'Удалить сверку?', {
+        confirmButtonText: 'Удалить',
+        confirmButtonClass: 'el-button--danger',
+    })
+        .then(async () => {
+            try {
+                await dbController.deleteCheck(props.date);
+                emit('update-check');
+                cancelChecking();
+                ElMessage({
+                    type: 'success',
+                    message: 'Удалено',
+                });
+            } catch (err) {
+                notifyWrap(err);
+            }
+        })
+        .catch(err => err);
 };
 
 const cancelChecking = () => {
@@ -183,5 +214,12 @@ onMounted(() => {
     flex-direction: column;
     align-items: flex-end;
     gap: 8px;
+}
+
+@media (min-width: 768px) {
+    .form-container .form-buttons {
+        flex-direction: initial;
+        gap: 0;
+    }
 }
 </style>
