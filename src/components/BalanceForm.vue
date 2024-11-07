@@ -1,21 +1,20 @@
 <template>
     <div class="form-container">
+        <p class="description">Укажите размеры активов и накоплений на конец дня выбранной даты</p>
         <el-form
+            v-if="isDataReady"
             :model="newCheck"
             :rules="checkRules"
             label-position="top"
             ref="checkForm"
         >
-            <el-form-item
-                label="Основной баланс"
-                prop="checked_balance"
-            >
-                <template #label
-                    >Общий баланс
-                    <InfoBalloon data="Без накоплений" />
+            <el-form-item prop="checked_default">
+                <template #label>
+                    Размер активов
+                    <InfoBalloon data="Баланс без учета накоплений" />
                 </template>
                 <el-input-number
-                    v-model="newCheck.checked_balance"
+                    v-model="newCheck.checked_default"
                     :min="0"
                     :step="100"
                 />
@@ -31,11 +30,12 @@
                 />
             </el-form-item>
             <el-form-item
+                v-if="!date"
                 label="Дата сверки"
                 prop="checking_date"
             >
-                <template #label
-                    >Дата сверки
+                <template #label>
+                    Дата сверки
                     <InfoBalloon data="Поменяйте, если указываете баланс не на текущий момент." />
                 </template>
                 <el-date-picker
@@ -59,99 +59,109 @@
         </div>
     </div>
 </template>
-<script>
+<script setup>
 import { Select } from '@element-plus/icons-vue';
-import { shallowRef } from 'vue';
+import { onMounted, ref, shallowRef } from 'vue';
 import { cloneByJSON, notifyWrap } from '../services/utils';
 import { Config } from '../services/changings';
 import InfoBalloon from '../components/InfoBalloon.vue';
+import { ElMessage, ElNotification } from 'element-plus';
+import dbController from '../services/db/controller';
+import formatHelper from '../services/helpers/formatHelper';
 
 const clearCheck = {
-    checked_balance: undefined,
+    checked_default: undefined,
     checked_savings: undefined,
     checking_date: undefined,
 };
+const props = defineProps({
+    mode: {
+        type: String,
+        default: 'mini', // mini | full
+    },
+    date: String,
+});
 
-export default {
-    components: {
-        InfoBalloon,
-    },
-    props: {
-        mode: {
-            type: String,
-            default: 'mini', // mini | full
-        },
-    },
-    emits: ['call-to-end'],
-    setup() {
-        return {
-            iconCheck: shallowRef(Select),
-        };
-    },
-    data() {
-        return {
-            newCheck: {},
-            checkRules: {
-                checked_balance: [
-                    { required: true, message: 'Баланс - обязательное поле', trigger: 'blur' },
-                ],
-                checked_savings: [
-                    { required: true, message: 'Накопления - обязательное поле', trigger: 'blur' },
-                ],
-                checking_date: [
-                    { required: true, message: 'Дата - обязательное поле', trigger: 'change' },
-                ],
-            },
-        };
-    },
-    computed: {},
-    methods: {
-        jumpRoute(path) {
-            this.$router.push({ path });
-        },
-        checkConfig() {
-            this.$refs.checkForm.validate(async valid => {
-                if (!valid) {
-                    this.$notify({
-                        title: 'Проверьте поля формы',
-                        type: 'error',
-                    });
-                    return false;
-                }
-                try {
-                    const config = new Config();
-                    let changes = config.setStart(this.newCheck);
-                    this.cancelChecking();
-                    await this.$store.dispatch('saveDataChanges', changes);
-                    this.$message({
-                        type: 'success',
-                        message: 'Сохранено',
-                    });
-                } catch (err) {
-                    notifyWrap(err);
-                }
-            });
-        },
-        cancelChecking() {
-            this.$emit('call-to-end');
-            this.newCheck = cloneByJSON(clearCheck);
-            this.newCheck.checking_date = new Date();
-        },
-    },
-    watch: {},
-    mounted() {
-        const configData = this.$store.getters.getData('config') || {};
-        this.newCheck.checking_date = new Date();
-        this.newCheck.checked_balance = configData.checked_balance || 0;
-        this.newCheck.checked_savings = configData.checked_savings || 0;
-    },
+const emit = defineEmits(['call-to-end', 'update-check']);
+
+const iconCheck = shallowRef(Select);
+const isDataReady = ref(false);
+const checkForm = ref(null);
+const newCheck = ref({});
+const checkRules = {
+    checked_default: [{ required: true, message: 'Баланс - обязательное поле', trigger: 'blur' }],
+    checked_savings: [{ required: true, message: 'Накопления - обязательное поле', trigger: 'blur' }],
+    checking_date: [{ required: true, message: 'Дата - обязательное поле', trigger: 'change' }],
 };
+
+const checkConfig = () => {
+    checkForm.value.validate(async valid => {
+        if (!valid) {
+            ElNotification({
+                title: 'Проверьте поля формы',
+                type: 'error',
+            });
+            return false;
+        }
+        try {
+            const params = {
+                date: formatHelper.getISODateString(newCheck.value.checking_date),
+                default_sum: newCheck.value.checked_default,
+                savings_sum: newCheck.value.checked_savings,
+            };
+            await dbController.setCheck(params);
+            emit('update-check');
+            cancelChecking();
+            ElMessage({
+                type: 'success',
+                message: 'Сохранено',
+            });
+        } catch (err) {
+            notifyWrap(err);
+        }
+    });
+};
+
+const cancelChecking = () => {
+    emit('call-to-end');
+    newCheck.value = cloneByJSON(clearCheck);
+    newCheck.value.checking_date = new Date();
+};
+
+const load = async () => {
+    try {
+        if (props.date) {
+            const check = await dbController.getCheck(props.date);
+
+            newCheck.value.checking_date = new Date(check.date);
+            newCheck.value.checked_default = check.default_sum;
+            newCheck.value.checked_savings = check.savings_sum;
+        } else {
+            const balance = await dbController.getCurrentBalance();
+
+            newCheck.value.checking_date = new Date();
+            newCheck.value.checked_default = balance.default;
+            newCheck.value.checked_savings = balance.savings;
+        }
+
+        isDataReady.value = true;
+    } catch (error) {
+        console.log(error);
+    }
+};
+
+onMounted(() => {
+    load();
+});
 </script>
 <style scoped>
 .form-container {
     display: flex;
     flex-direction: column;
     align-items: stretch;
+}
+.form-container > .description {
+    margin-bottom: 8px;
 }
 
 .el-card {

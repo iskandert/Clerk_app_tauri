@@ -67,7 +67,42 @@
                             >
                                 <h6>{{ getFormattedDate(date) }}</h6>
                                 <div
-                                    class="action"
+                                    class="row"
+                                    v-if="checks[date]"
+                                >
+                                    <div class="icon-balance">
+                                        <el-icon
+                                            size="36"
+                                            color="white"
+                                            ><CircleCheckFilled
+                                        /></el-icon>
+                                    </div>
+                                    <div class="text">
+                                        <div
+                                            class="category el-link el-link--default is-underline"
+                                            @click="callEditCheck(date)"
+                                        >
+                                            Баланс сверен
+                                        </div>
+                                        <span class="comment"> Суммы на конец дня </span>
+                                    </div>
+                                    <div class="row-balance">
+                                        <div class="count">
+                                            <span> Активы: </span>
+                                            <span>
+                                                {{ formatHelper.getCurrency(checks[date].default_sum) }}
+                                            </span>
+                                        </div>
+                                        <div class="count">
+                                            <span> Накопления: </span>
+                                            <span>
+                                                {{ formatHelper.getCurrency(checks[date].savings_sum) }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div
+                                    class="row"
                                     v-for="action in actions"
                                     :key="action._id"
                                 >
@@ -197,9 +232,24 @@
             :before-close="handleCancelBalance"
         >
             <template #header>
-                <h4>Сверить баланс</h4>
+                <h4 v-if="!editingCheckDate">Сверить баланс</h4>
+                <h4 v-else>
+                    Редактировать сверку на
+                    {{ formatHelper.getEuropeanDateNecessary(editingCheckDate) }}
+                </h4>
             </template>
-            <BalanceForm @call-to-end="handleCancelBalance" />
+            <BalanceForm
+                v-if="balanceDialog"
+                :date="editingCheckDate"
+                @call-to-end="handleCancelBalance"
+                @update-check="
+                    () => {
+                        loadActions();
+                        loadBalance();
+                        loadChecks();
+                    }
+                "
+            />
         </el-dialog>
     </div>
 </template>
@@ -208,7 +258,7 @@ import { computed, onMounted, ref, shallowRef, watch } from 'vue';
 import ActionsForm from '../components/ActionsForm.vue';
 import BalanceForm from '../components/BalanceForm.vue';
 import { dayjs, getEntityField, getFormattedCount } from '../services/utils';
-import { Lock, Unlock, Plus, Minus, CirclePlusFilled, Warning } from '@element-plus/icons-vue';
+import { Lock, Unlock, Plus, Minus, CirclePlusFilled, Warning, CircleCheckFilled } from '@element-plus/icons-vue';
 import { Config } from '../services/changings';
 import store from '../store';
 import router from '../router';
@@ -224,12 +274,15 @@ const isEditMode = ref(false);
 const balanceDialog = ref(false);
 const currentMonth = ref(new Date(formatHelper.getISODateString()));
 
+const editingCheckDate = ref(null);
+
 const isLoadingActions = ref(false);
 const isLoadingBalance = ref(false);
 
 const actions = ref(null);
 const categories = ref(null);
 const balance = ref(null);
+const checks = ref({});
 
 const categoriesById = computed(() =>
     categories.value.reduce((acc, category) => {
@@ -296,6 +349,7 @@ const openBalanceDialog = () => {
 
 const handleCancelBalance = () => {
     balanceDialog.value = false;
+    editingCheckDate.value = null;
 };
 
 const loadActions = async () => {
@@ -328,12 +382,30 @@ const loadBalance = async () => {
     }
 };
 
+const loadChecks = async () => {
+    try {
+        const resp = await dbController.getChecks();
+        checks.value = resp.reduce((acc, check) => {
+            acc[check.date] = check;
+            return acc;
+        }, {});
+    } catch (error) {
+        console.log(error);
+    }
+};
+
+const callEditCheck = date => {
+    editingCheckDate.value = date;
+    openBalanceDialog();
+};
+
 const init = async () => {
     console.log('init actions');
 
     await loadCategories();
     await loadActions();
     await loadBalance();
+    await loadChecks();
 };
 
 watch(currentMonthFormatted, () => loadActions());
@@ -427,43 +499,50 @@ onMounted(async () => {
     margin-bottom: 12px;
 }
 
-.actions > .action + h6 {
+.actions > .row + h6 {
     margin-top: 24px;
 }
 
-.action {
+.row {
     display: flex;
     gap: 12px;
     align-items: center;
     margin-bottom: 12px;
 }
 
-.action > .icon {
+.row > .icon,
+.row > .icon-balance {
     width: 36px;
     aspect-ratio: 1;
     border-radius: 50%;
     background-color: var(--el-color-gray);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.row > .icon-balance {
+    background-color: var(--el-color-success);
 }
 
-.action > .text {
+.row > .text {
     flex-grow: 1;
 }
 
-.action > .text > .category {
+.row > .text > .category {
     font-weight: bold;
     display: block;
     width: max-content;
 }
-.action > .text > .category.not-editable {
+.row > .text > .category.not-editable {
     pointer-events: none;
 }
 
-.action > .text > .comment {
+.row > .text > .comment {
     font-size: 12px;
     color: var(--el-text-color-secondary);
 }
 
-.action > .sum {
+.row > .sum {
     align-self: flex-start;
     display: flex;
     align-items: center;
@@ -471,27 +550,40 @@ onMounted(async () => {
     line-height: 1;
 }
 
-.action > .sum > .symbol {
+.row > .sum > .symbol {
     display: none;
 }
 
-.action > .sum.income.default > * {
+.row > .sum.income.default > * {
     color: var(--el-color-success);
 }
 
-.action > .sum.income.savings > * {
+.row > .sum.income.savings > * {
     color: var(--el-color-danger);
 }
 
-.action > .sum.expense.savings > * {
+.row > .sum.expense.savings > * {
     color: var(--el-color-primary);
 }
 
-.action > .sum.income.default > .symbol.plus,
-.action > .sum.expense.default > .symbol.minus,
-.action > .sum.income.savings > .symbol.unlock,
-.action > .sum.expense.savings > .symbol.lock {
+.row > .sum.income.default > .symbol.plus,
+.row > .sum.expense.default > .symbol.minus,
+.row > .sum.income.savings > .symbol.unlock,
+.row > .sum.expense.savings > .symbol.lock {
     display: flex;
+}
+
+.row-balance {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    font-size: 14px;
+}
+.row-balance > .count > span:nth-child(1) {
+    color: var(--el-color-success);
+}
+.row-balance > .count > span:nth-child(2) {
+    font-weight: bold;
 }
 
 .adding-button {
