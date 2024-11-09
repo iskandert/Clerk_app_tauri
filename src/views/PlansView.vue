@@ -251,9 +251,13 @@
                                                 }
                                             )
                                         "
-                                        :sum="plansMatrix[date]?.byCategoryId[category._id]?.sum"
+                                        :sum="
+                                            plansMatrix[date]?.byCategoryId[category._id]?.sum ??
+                                            (!category._isEditable ? 0 : undefined)
+                                        "
                                         :status="category.status"
                                         :date="date"
+                                        :disable-edit="!category._isEditable"
                                     />
                                     <!-- :deviation="plansSmirnovStatistic.deviations?.[date]?.[category._id]" -->
                                 </div>

@@ -14,7 +14,7 @@
             <div
                 tabindex="0"
                 class="item plan"
-                :class="[status, isPast ? 'past' : '']"
+                :class="[status, { 'no-editable': isPast || disableEdit }]"
                 v-if="isDefinedSum"
             >
                 {{ formattedSum }}
@@ -56,6 +56,7 @@ export default {
             type: Number,
             default: null,
         },
+        disableEdit: Boolean,
     },
     emits: ['call-to-edit'],
     data() {
@@ -98,7 +99,7 @@ export default {
     },
     methods: {
         handleClick() {
-            if (this.isPast && this.isDefinedSum && this.type === 'one') return;
+            if (this.disableEdit || (this.isPast && this.isDefinedSum && this.type === 'one')) return;
             this.$emit('call-to-edit');
         },
     },
@@ -114,7 +115,7 @@ export default {
     font-weight: bold;
 }
 
-.item:not(.all, .past) {
+.item:not(.all, .no-editable) {
     cursor: pointer;
     transition: background-color 0.15s;
 }
@@ -139,21 +140,21 @@ export default {
     background-color: var(--el-color-success-light-3);
 }
 
-.item.plan.expense.past {
+.item.plan.expense.no-editable {
     background-color: var(--el-color-info-light-7);
 }
 
-.item.plan.income.past {
+.item.plan.income.no-editable {
     background-color: var(--el-color-success-light-7);
 }
 
-.item.plan.expense.past,
+.item.plan.expense.no-editable,
 .item.all.expense {
     color: var(--el-color-info-dark-2);
     border: 2px solid currentColor;
 }
 
-.item.plan.income.past,
+.item.plan.income.no-editable,
 .item.all.income {
     color: var(--el-color-success-dark-2);
     border: 2px solid currentColor;
@@ -167,19 +168,19 @@ export default {
     border-color: var(--el-color-primary);
 }
 
-.item.plan.expense:not(.past):hover {
+.item.plan.expense:not(.no-editable):hover {
     background-color: var(--el-color-info);
 }
 
-.item.plan.expense:not(.past):active {
+.item.plan.expense:not(.no-editable):active {
     background-color: var(--el-color-info-dark-2);
 }
 
-.item.plan.income:not(.past):hover {
+.item.plan.income:not(.no-editable):hover {
     background-color: var(--el-color-success);
 }
 
-.item.plan.income:not(.past):active {
+.item.plan.income:not(.no-editable):active {
     background-color: var(--el-color-success-dark-2);
 }
 
