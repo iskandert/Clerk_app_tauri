@@ -362,19 +362,15 @@ const getPlansMatrix = async () => {
         plans.forEach(plan => {
             if (!matrix[plan.date]) {
                 matrix[plan.date] = {
-                    incomes: 0,
-                    expenses: 0,
+                    [categoryStatusEnum.INCOME]: 0,
+                    [categoryStatusEnum.EXPENSE]: 0,
                     byCategoryId: {},
                 };
             }
             matrix[plan.date].byCategoryId[plan.category_id] = plan;
 
             const { status } = categoriesByIds[plan.category_id];
-            if (status === categoryStatusEnum.INCOME) {
-                matrix[plan.date].incomes += plan.sum;
-            } else if (status === categoryStatusEnum.EXPENSE) {
-                matrix[plan.date].expenses += plan.sum;
-            }
+            matrix[plan.date][status] += plan.sum;
         });
 
         await tx.done;

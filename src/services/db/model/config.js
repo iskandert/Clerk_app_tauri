@@ -93,7 +93,7 @@ const getBalanceDynamic = async () => {
         }, {});
 
         const plans = await plansStore.getAll();
-        const dates = Array.from(new Set(plans.map(({ date }) => date)));
+        const dates = Array.from(new Set(plans.map(({ date }) => date))).sort();
 
         const startDate = dates[0];
         const endDate = dates.at(-1);

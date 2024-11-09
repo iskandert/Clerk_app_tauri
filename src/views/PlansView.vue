@@ -6,38 +6,22 @@
                 <div class="button-bar">
                     <template v-if="!isMobileSize">
                         <el-button
-                            @click="isShowedBalance = !isShowedBalance"
-                            :type="isShowedBalance ? 'primary' : ''"
+                            @click="isShowedDinamic = !isShowedDinamic"
+                            :type="isShowedDinamic ? 'primary' : ''"
                             round
                             plain
                             :icon="iconLock"
                         >
-                            Баланс
+                            Динамика
                         </el-button>
-                        <!-- <el-button @click="isShowedSavings = !isShowedSavings" :type="isShowedSavings ? 'primary' : ''" round plain
-              :icon="iconCoin">
-              Накопления
-            </el-button>
-            <el-button @click="isShowedDinamic = !isShowedDinamic" :type="isShowedDinamic ? 'primary' : ''" round plain
-              :icon="iconDinamic">
-              Изменения
-            </el-button>
-            <el-button @click="isShowedPercentage = !isShowedPercentage" :type="isShowedPercentage ? 'primary' : ''" round
-              plain>
-              % Процентаж
-            </el-button> -->
-                        <el-button
+                        <!-- <el-button
                             @click="isShowedCorrelation = !isShowedCorrelation"
                             :type="isShowedCorrelation ? 'primary' : ''"
                             round
                             plain
                         >
                             <i style="margin: 0 6px 3px 0">ρ</i>Корреляция
-                        </el-button>
-                        <!-- <el-button @click="isReversedLayout = !isReversedLayout" :type="isReversedLayout ? 'primary' : ''" round plain
-              :icon="iconFlip">
-              Перевернуть
-            </el-button> -->
+                        </el-button> -->
                     </template>
 
                     <el-popover
@@ -55,19 +39,16 @@
                         </template>
                         <div class="checkbox-bar">
                             <h5>Настройки отображения</h5>
-                            <el-checkbox v-model="isShowedBalance">Баланс</el-checkbox>
-                            <!-- <el-checkbox v-model="isShowedSavings">Накопления</el-checkbox>
-              <el-checkbox v-model="isShowedDinamic">Изменения</el-checkbox>
-              <el-checkbox v-model="isShowedPercentage">Процентаж</el-checkbox> -->
-                            <el-checkbox v-model="isShowedCorrelation">Корреляция</el-checkbox>
-                            <!-- <el-checkbox v-model="isReversedLayout">Перевернуть</el-checkbox> -->
-                            <el-checkbox v-model="isShowedS">Корреляция</el-checkbox>
+                            <el-checkbox v-model="isShowedDinamic">Динамика</el-checkbox>
+                            <!-- <el-checkbox v-model="isShowedCorrelation">Корреляция</el-checkbox> -->
                         </div>
                     </el-popover>
                 </div>
             </div>
             <div class="table">
+                <p v-if="!isDataReady">Загрузка...</p>
                 <el-table
+                    v-else
                     class="table-normal"
                     :data="categoriesList"
                     row-key="_id"
@@ -76,7 +57,6 @@
                     max-height="var(--table-height)"
                     @row-click="toggleExpand"
                     ref="plansTable"
-                    v-if="!isReversedLayout"
                     @keydown.up.prevent
                     @keydown.down.prevent
                     @keydown.left.prevent
@@ -90,46 +70,34 @@
                         <template #header>
                             <div class="desktop-only">
                                 <div class="table-title tips">
-                                    <span class="span-wrap-keepall"
-                                        >{{ monthProgress }}% месяца</span
-                                    >
+                                    <span class="span-wrap-keepall">{{ monthProgress }}% месяца</span>
                                 </div>
-                                <div class="table-title tips">
-                                    <span class="span-wrap-keepall">{{
-                                        plansSmirnovStatistic.gammaN
-                                    }}</span>
-                                </div>
+                                <!-- <div class="table-title tips">
+                                    <span class="span-wrap-keepall">{{ plansSmirnovStatistic.gammaN }}</span>
+                                </div> -->
                             </div>
                         </template>
                         <template #default="{ row: category }">
                             <span
                                 class="category-name"
-                                @click="
-                                    () =>
-                                        !category.children
-                                            ? callEditCategory(category._id)
-                                            : undefined
-                                "
-                                :class="[
-                                    category.status,
-                                    category.type,
-                                    category.children ? 'parent-category' : '',
-                                ]"
+                                :class="[category.status, category.type, category.children ? 'parent-category' : '']"
                             >
                                 <template v-if="category.type === 'default'">
                                     <el-icon
                                         v-if="category.status === 'income'"
                                         class="symbol plus"
-                                        :size="10"
+                                        :size="14"
                                     >
-                                        <Plus />
+                                        <Plus v-if="category._isAccounted" />
+                                        <Warning v-else />
                                     </el-icon>
                                     <el-icon
                                         v-if="category.status === 'expense'"
                                         class="symbol minus"
-                                        :size="10"
+                                        :size="14"
                                     >
-                                        <Minus />
+                                        <Minus v-if="category._isAccounted" />
+                                        <Warning v-else />
                                     </el-icon>
                                 </template>
                                 <template v-if="category.type === 'savings'">
@@ -138,18 +106,20 @@
                                         class="symbol lock"
                                         :size="14"
                                     >
-                                        <Lock />
+                                        <Lock v-if="category._isAccounted" />
+                                        <Warning v-else />
                                     </el-icon>
                                     <el-icon
                                         v-if="category.status === 'income'"
                                         class="symbol unlock"
                                         :size="14"
                                     >
-                                        <Unlock />
+                                        <Unlock v-if="category._isAccounted" />
+                                        <Warning v-else />
                                     </el-icon>
                                 </template>
                                 <el-link
-                                    v-if="!category.children"
+                                    v-if="!category.children && category._isEditable"
                                     @click="callEditCategory(category._id)"
                                 >
                                     {{ category.name }}
@@ -159,7 +129,7 @@
                         </template>
                     </el-table-column>
                     <el-table-column
-                        v-if="isShowedBalance"
+                        v-if="isShowedDinamic"
                         :width="isMobileSize ? '90' : '130'"
                         fixed
                     >
@@ -167,17 +137,17 @@
                             <span class="span-wrap-keepall">Выполнение планов</span>
                         </template>
                         <template #default="{ row: category }">
+                            <!-- {{ console.log(category.name, category._id) }}
+                            {{ console.log(plansProgress[category._id]) }} -->
                             <PlansPercent
-                                :current-sum="progressByCategoriesIds[category._id]?.sum"
-                                :percentage="progressByCategoriesIds[category._id]?.percentage"
-                                :show-percentage="
-                                    progressByCategoriesIds[category._id]?.percentage !== undefined
-                                "
+                                :current-sum="plansProgress[category._id].sum"
+                                :percentage="plansProgress[category._id].percentage"
+                                :show-percentage="plansProgress[category._id].percentage !== null"
                                 :status="category.status"
                             />
                         </template>
                     </el-table-column>
-                    <el-table-column
+                    <!-- <el-table-column
                         v-if="isShowedCorrelation"
                         width="45'"
                         fixed
@@ -211,10 +181,10 @@
                                 </el-icon>
                             </div>
                         </template>
-                    </el-table-column>
+                    </el-table-column> -->
                     <el-table-column
-                        v-for="(date, index) in datesList"
-                        :key="index"
+                        v-for="date in datesList"
+                        :key="date"
                         width="120"
                     >
                         <template #header>
@@ -222,52 +192,48 @@
                                 class="table-title dates"
                                 :class="{ yearStart: isYearStart(date) }"
                             >
-                                <span class="desktop-only">{{
-                                    $dayjs(date).format('MMMM YY')
-                                }}</span>
-                                <span class="mobile-only">{{
-                                    $dayjs(date).format('MM.YYYY')
-                                }}</span>
-                                <template v-if="!(datesRange?.at(-1) < date)">
+                                <span class="desktop-only">{{ dayjs(date).format('MMMM YY') }}</span>
+                                <span class="mobile-only">{{ dayjs(date).format('MM.YYYY') }}</span>
+                                <template v-if="datesRange.includes(date)">
                                     <PlansBalance
-                                        v-if="isShowedBalance"
-                                        :sum="balancesByDates[date]?.balance"
-                                        :dinamic="balancesByDates[date]?.balanceDiff"
+                                        v-if="isShowedDinamic"
+                                        :sum="balancesByDates[date]?.default"
+                                        :dinamic="balancesByDates[date]?.defaultDiff"
                                         type="default"
-                                        :is-show-dinamic="isShowedBalance"
+                                        :is-show-dinamic="isShowedDinamic"
                                     />
                                     <PlansBalance
-                                        v-if="isShowedBalance"
+                                        v-if="isShowedDinamic"
                                         :sum="balancesByDates[date]?.savings"
                                         :dinamic="balancesByDates[date]?.savingsDiff"
                                         type="savings"
-                                        :is-show-dinamic="isShowedBalance"
+                                        :is-show-dinamic="isShowedDinamic"
                                         style="margin: 4px 0 4px"
                                     />
                                 </template>
                                 <template v-else>
                                     <PlansBalance
-                                        v-if="isShowedBalance"
-                                        :sum="balancesByDates[datesRange?.at(-1)]?.balance"
+                                        v-if="isShowedDinamic"
+                                        :sum="balancesByDates[datesRange.at(-1)]?.default"
                                         :dinamic="0"
                                         type="default"
-                                        :is-show-dinamic="isShowedBalance"
+                                        :is-show-dinamic="isShowedDinamic"
                                     />
                                     <PlansBalance
-                                        v-if="isShowedBalance"
-                                        :sum="balancesByDates[datesRange?.at(-1)]?.savings"
+                                        v-if="isShowedDinamic"
+                                        :sum="balancesByDates[datesRange.at(-1)]?.savings"
                                         :dinamic="0"
                                         type="savings"
-                                        :is-show-dinamic="isShowedBalance"
+                                        :is-show-dinamic="isShowedDinamic"
                                         style="margin: 4px 0 4px"
                                     />
                                 </template>
-                                <PlansCorrelation
+                                <!-- <PlansCorrelation
                                     v-if="isShowedCorrelation && correlationsByDates[date]"
                                     :factor="correlationsByDates[date].k"
                                     :positive="correlationsByDates[date].isPositive"
                                     :negative="correlationsByDates[date].isNegative"
-                                />
+                                /> -->
                             </div>
                         </template>
                         <template #default="{ row: category }">
@@ -279,19 +245,17 @@
                                     <PlansItem
                                         @call-to-edit="
                                             callEditPlan(
-                                                plansMatrix?.[date]?.[category._id] || {
+                                                plansMatrix[date]?.byCategoryId[category._id] || {
                                                     date,
                                                     category_id: category._id,
                                                 }
                                             )
                                         "
-                                        :sum="plansMatrix?.[date]?.[category._id]?.sum"
+                                        :sum="plansMatrix[date]?.byCategoryId[category._id]?.sum"
                                         :status="category.status"
                                         :date="date"
-                                        :deviation="
-                                            plansSmirnovStatistic.deviations?.[date]?.[category._id]
-                                        "
                                     />
+                                    <!-- :deviation="plansSmirnovStatistic.deviations?.[date]?.[category._id]" -->
                                 </div>
                             </template>
                             <div
@@ -300,7 +264,7 @@
                                 v-else
                             >
                                 <PlansItem
-                                    :sum="plansSumsByDates?.[date]?.[category.status]?.balance || 0"
+                                    :sum="plansMatrix[date]?.[category.status] || 0"
                                     type="all"
                                     :status="category.status"
                                 />
@@ -319,79 +283,12 @@
                         </div>
                     </template>
                 </el-table>
-
-                <!-- <el-table class="table-reversed" v-else :data="datesList" border ref="plansTable2"
-          max-height="var(--table-height)">
-          <el-table-column :width="isMobileSize ? 80 : 120" fixed class="dates-column">
-            <template #header>
-              <div class="desktop-only">
-                <div class="table-title tips" :class="{ gaped: isReversedLayout }">
-                  <span class="span-wrap-keepall">{{ monthProgress }}% месяца</span>
-                </div>
-              </div>
-            </template>
-            <template #default="{ row: date }">
-              <span class="date" :class="{ yearStart: isYearStart(date) }">
-                {{ $dayjs(date).format(isMobileSize ? 'MM.YYYY' : 'YYYY MMMM') }}
-              </span>
-            </template>
-          </el-table-column>
-          <el-table-column v-if="isShowedBalance" width="110" fixed>
-            <template #header>
-              <span>Баланс</span>
-            </template>
-            <template #default="{ row: date }">
-              <PlansBalance :sum="balancesByDates[date]?.balance" :dinamic="balancesByDates[date]?.balanceDiff"
-                type="default" :is-show-dinamic="isShowedDinamic" :class="{ yearStart: isYearStart(date) }" />
-            </template>
-          </el-table-column>
-          <el-table-column v-if="isShowedSavings" width="110" fixed>
-            <template #header>
-              <span>Накопления</span>
-            </template>
-            <template #default="{ row: date }">
-              <PlansBalance :sum="balancesByDates[date]?.savings" :dinamic="balancesByDates[date]?.savingsDiff"
-                type="savings" :is-show-dinamic="isShowedDinamic" :class="{ yearStart: isYearStart(date) }" />
-            </template>
-          </el-table-column>
-          <el-table-column v-for="(categGroup, index) in plansByCategories" :key="index" :label="categGroup.name">
-            <template #header>
-              <div class="table-title category-header" :class="[categGroup.status, categGroup.type]">
-                <div>{{ categGroup.name }}</div>
-              </div>
-            </template>
-            <el-table-column width="120" v-for="(category, index) in [categGroup, ...categGroup.children]" :key="index"
-              :label="category.name">
-              <template #header>
-                <div class="table-title category-header" :class="[category.status, category.type]">
-                  <PlansPercent v-if="isShowedPercentage" :current-sum="progressByCategoriesIds[category._id]?.sum"
-                    :percentage="progressByCategoriesIds[category._id]?.percentage"
-                    :show-percentage="progressByCategoriesIds[category._id]?.percentage !== undefined"
-                    :status="category.status" style="margin-bottom:4px" />
-                  <el-link v-if="category.type" @click="callEditCategory(category._id)">
-                    {{ category.name }}
-                  </el-link>
-                  <div v-else>Всего</div>
-                </div>
-              </template>
-              <template #default="{ row: date }">
-                <template v-if="category.type">
-                  <div class="plan-item" :class="{ yearStart: isYearStart(date) }">
-                    <PlansItem @call-to-edit="callEditPlan(category.plans[date] || { date, category_id: category._id })"
-                      :sum="category.plans[date]?.sum" :status="category.status" :date="date" />
-                  </div>
-                </template>
-                <div class="plans-sum" :class="{ yearStart: isYearStart(date) }" v-else>
-                  <PlansItem :sum="plansByDatesObj[date]?.sums?.[category.status] || 0" type="all"
-                    :status="category.status" />
-                </div>
-              </template>
-            </el-table-column>
-          </el-table-column>
-        </el-table> -->
             </div>
-            <div class="button-container">
-                <el-badge :is-dot="hasStatisticSettings">
+            <div
+                v-if="isDataReady"
+                class="button-container"
+            >
+                <!-- <el-badge :is-dot="hasStatisticSettings">
                     <el-button
                         @click="openStatisticDialog"
                         round
@@ -401,7 +298,7 @@
                     >
                         Статистика
                     </el-button>
-                </el-badge>
+                </el-badge> -->
                 <el-button
                     @click="openDeletingPlanDialog"
                     round
@@ -453,6 +350,12 @@
             </template>
             <PlansDeletingForm
                 @call-to-end="handleCancelDeletingPlan"
+                @update-plan="
+                    () => {
+                        loadBalanceDynamic();
+                        loadPlans();
+                    }
+                "
                 class="dialog"
             />
         </el-dialog>
@@ -469,6 +372,12 @@
             </template>
             <PlansExtendingForm
                 @call-to-end="handleCancelExtendingPlan"
+                @update-plan="
+                    () => {
+                        loadBalanceDynamic();
+                        loadPlans();
+                    }
+                "
                 class="dialog"
             />
         </el-dialog>
@@ -485,6 +394,12 @@
             </template>
             <PlansForm
                 @call-to-end="handleCancelPlan"
+                @update-plan="
+                    () => {
+                        loadBalanceDynamic();
+                        loadPlans();
+                    }
+                "
                 class="dialog"
             />
         </el-dialog>
@@ -501,11 +416,12 @@
             </template>
             <CategoriesForm
                 @call-to-end="handleCancelCategory"
+                @update-category="loadCategories"
                 class="dialog"
             />
         </el-dialog>
 
-        <el-dialog
+        <!-- <el-dialog
             width="min(100vw, 500px)"
             v-model="statisticDialog"
             :append-to-body="true"
@@ -521,22 +437,16 @@
                 :dates="filteredDates"
                 class="dialog"
             />
-        </el-dialog>
+        </el-dialog> -->
     </div>
 </template>
-<script>
-import { shallowRef } from 'vue';
+<script setup>
+import { onMounted, shallowRef } from 'vue';
 import ActionsBar from '../components/ActionsBar.vue';
 import PlansBalance from '../components/PlansBalance.vue';
 import PlansItem from '../components/PlansItem.vue';
 import PlansForm from '../components/PlansForm.vue';
-import {
-    mapObject,
-    getEntityField,
-    getObjectFromArray,
-    getFormattedCount,
-    cloneByJSON,
-} from '../services/utils';
+import { mapObject, getEntityField, getObjectFromArray, getFormattedCount, cloneByJSON } from '../services/utils';
 import {
     Lock,
     Unlock,
@@ -555,6 +465,7 @@ import {
     Filter,
     CircleCheckFilled,
     CircleCloseFilled,
+    Warning,
 } from '@element-plus/icons-vue';
 import PlansPercent from '../components/PlansPercent.vue';
 import CategoriesForm from '../components/CategoriesForm.vue';
@@ -569,432 +480,400 @@ import {
 } from '../services/analize';
 import PlansCorrelation from '../components/PlansCorrelation.vue';
 import StatisticForm from '../components/StatisticForm.vue';
+import { ref } from 'vue';
+import { computed } from 'vue';
+import dbController from '../services/db/controller';
+import { categoryStatusEnum, categoryTypeEnum } from '../services/constants';
+import formatHelper from '../services/helpers/formatHelper';
+import dayjs from 'dayjs';
+import store from '../store';
+import router from '../router';
+import { ElMessage, ElMessageBox } from 'element-plus';
 
-export default {
-    components: {
-        ActionsBar,
-        PlansItem,
-        Lock,
-        Unlock,
-        Plus,
-        Minus,
-        PlansBalance,
-        PlansPercent,
-        PlansForm,
-        CategoriesForm,
-        CopyDocument,
-        PlansDeletingForm,
-        PlansExtendingForm,
-        Filter,
-        CircleCheckFilled,
-        CircleCloseFilled,
-        PlansCorrelation,
-        StatisticForm,
-    },
-    setup() {
-        return {
-            iconLock: shallowRef(Lock),
-            iconCoin: shallowRef(Coin),
-            iconDinamic: shallowRef(Sort),
-            iconFlip: shallowRef(Refresh),
-            iconMore: shallowRef(MoreFilled),
-            iconCPlus: shallowRef(CirclePlusFilled),
-            iconRemove: shallowRef(RemoveFilled),
-            iconRecalc: shallowRef(RefreshLeft),
-            iconExtend: shallowRef(DArrowRight),
-            iconDataAnalysis: shallowRef(DataAnalysis),
+const iconLock = shallowRef(Lock);
+const iconCoin = shallowRef(Coin);
+const iconDinamic = shallowRef(Sort);
+const iconFlip = shallowRef(Refresh);
+const iconMore = shallowRef(MoreFilled);
+const iconCPlus = shallowRef(CirclePlusFilled);
+const iconRemove = shallowRef(RemoveFilled);
+const iconRecalc = shallowRef(RefreshLeft);
+const iconExtend = shallowRef(DArrowRight);
+const iconDataAnalysis = shallowRef(DataAnalysis);
+
+const plansTable = ref(null);
+const isDataReady = ref(false);
+// table settings
+const isShowedDinamic = ref(true);
+const isShowedCorrelation = ref(false);
+//
+const deletingPlanDialog = ref(false);
+//
+const extendingPlanDialog = ref(false);
+//
+const planDialog = ref(false);
+const isEditMode = ref(false);
+//
+const categoryDialog = ref(false);
+const isEditCategory = ref(false);
+//
+const filteredCategoryIds = ref([]);
+const filteredDates = ref([]);
+const statisticDialog = ref(false);
+const isShowFilteredOnly = ref(false);
+
+const categories = ref(null);
+const plansMatrix = ref(null);
+const balances = ref(null);
+const actionSumsByCategoryIds = ref(null);
+
+// const hasStatisticSettings = computed(() => {
+//     return !!(this.filteredCategoryIds?.length && this.filteredDates?.length);
+// });
+const plansProgress = computed(() => {
+    const result = {};
+
+    for (const id in actionSumsByCategoryIds.value) {
+        const planSum = plansMatrix.value[formatHelper.getISOYearMonthString()]?.byCategoryId[id]?.sum ?? 0;
+        const actionsSum = actionSumsByCategoryIds.value[id];
+
+        result[id] = {
+            sum: actionsSum,
+            percentage: null,
         };
-    },
-    data() {
-        return {
-            // table settings
-            isReversedLayout: false,
-            isShowedBalance: true,
-            // isShowedSavings: true,
-            // isShowedDinamic: true,
-            // isShowedPercentage: true,
-            isShowedCorrelation: false,
-            //
-            deletingPlanDialog: false,
-            //
-            extendingPlanDialog: false,
-            //
-            planDialog: false,
-            isEditMode: false,
-            //
-            categoryDialog: false,
-            isEditCategory: false,
-            //
-            filteredCategoryIds: [],
-            filteredDates: [],
-            statisticDialog: false,
-            isShowFilteredOnly: false,
-            getFormattedCount,
+
+        if (planSum) {
+            result[id].percentage = Math.round((actionsSum / planSum) * 100);
+        }
+    }
+    for (const status of [categoryStatusEnum.INCOME, categoryStatusEnum.EXPENSE]) {
+        const planSum = plansMatrix.value[formatHelper.getISOYearMonthString()]?.[status] ?? 0;
+        const actionsSum = categoriesList.value
+            .find(({ _id }) => _id === status)
+            .children.map(({ _id }) => actionSumsByCategoryIds.value[_id])
+            .reduce((acc, sum) => acc + sum, 0);
+
+        result[status] = {
+            sum: actionsSum,
+            percentage: null,
         };
-    },
-    computed: {
-        hasStatisticSettings() {
-            return !!(this.filteredCategoryIds?.length && this.filteredDates?.length);
-        },
-        categoriesStored() {
-            return this.$store.getters.getData('categories') || [];
-        },
-        categoriesCalc() {
-            return this.$store.getters.getCalcs('categoriesIds') || {};
-        },
-        categoriesIndexes() {
-            return this.$store.getters.getCalcs('categoriesIndexesByIds') || {};
-        },
-        plansStored() {
-            return this.$store.getters.getData('plans') || [];
-        },
-        plansCalc() {
-            return this.$store.getters.getCalcs('plansIdsByDatesByCategoriesIds') || {};
-        },
-        plansIndexes() {
-            return this.$store.getters.getCalcs('plansIndexesByIds') || {};
-        },
-        plansMatrix() {
-            const matrix = {};
-            for (const date in this.plansCalc) {
-                matrix[date] = {};
-                for (const category_id in this.plansCalc[date]) {
-                    matrix[date][category_id] =
-                        this.plansStored?.[
-                            this.plansIndexes?.[this.plansCalc?.[date]?.[category_id]]
-                        ];
-                }
-            }
-            // console.log('matrix', matrix);
-            return matrix;
-        },
-        plansSumsByDates() {
-            return this.$store.getters.getCalcs('sumsByDatesByCategoriesStatuses') || {};
-        },
-        progressByCategoriesIds() {
-            return this.$store.getters.getCalcs('progressByCategoriesIds') || {};
-        },
-        balancesByDates() {
-            return this.$store.getters.getCalcs('balancesByDates') || {};
-        },
-        categoriesObj() {
-            return getObjectFromArray(this.categoriesStored);
-        },
-        categoriesDeviations() {
-            const stdDevs = {};
-            for (const category_id in this.plansByCategoriesFlatten) {
-                const plansSums = this.plansByCategoriesFlatten[category_id].map(({ sum }) => sum);
-                stdDevs[category_id] = getStandardDeviation(plansSums);
-            }
-            return stdDevs;
-        },
-        categoriesForCorrelation() {
-            const data = Object.entries(this.categoriesDeviations).map(([_id, stdDev]) => ({
-                _id,
-                value: stdDev,
-            }));
-            return getIdsInNormalDistribution(data);
-        },
-        categoriesList() {
-            let categories = [
-                {
-                    _id: 'income',
-                    status: 'income',
-                    name: 'Доходы',
-                    children: [],
-                },
-                {
-                    _id: 'expense',
-                    status: 'expense',
-                    name: 'Расходы',
-                    children: [],
-                },
-            ];
-            categories.forEach(categs => {
-                categs.children = ['default', 'savings']
-                    .map(categType => {
-                        return this.categoriesCalc[categs.status]?.[categType]
-                            .filter(id => {
-                                return this.isShowFilteredOnly
-                                    ? this.filteredCategoryIds.includes(id)
-                                    : true;
-                            })
-                            .map(id => {
-                                return cloneByJSON(
-                                    this.categoriesStored[this.categoriesIndexes[id]]
-                                );
-                            })
-                            .sort((a, b) => {
-                                const [nameA, nameB] = [a.name, b.name];
-                                if (nameA < nameB) return -1;
-                                if (nameA > nameB) return 1;
-                                return 0;
-                            });
-                    })
-                    .reduce((result, curr) => result?.concat(curr));
-                // console.log(categs.children);
-            });
-            return categories;
-        },
-        plansDates() {
-            const dates = new Set(
-                this.plansStored.map(({ date }) => this.$dayjs(date).format('YYYY-MM'))
-            );
-            return Array.from(dates).sort((a, b) => new Date(b) - new Date(a));
-        },
-        datesRange() {
-            return this.$store.getters.getCalcs('datesRange') || [];
-        },
-        datesList() {
-            const dates = cloneByJSON(this.datesRange);
-            let lastDate = dates.at(-1);
-            for (let monthsCount = 1; monthsCount <= 12; monthsCount++) {
-                dates.push(this.$dayjs(lastDate).add(monthsCount, 'month').format('YYYY-MM'));
-            }
-            return dates.filter(date => {
-                return this.isShowFilteredOnly ? this.filteredDates.includes(date) : true;
-            });
-        },
-        correlationsByDates() {
-            const correlations = {};
 
-            this.datesRange.forEach((date, idx, dates) => {
-                const correlationDataCurr = [];
-                const correlationDataPrev = [];
-                if (idx) {
-                    this.categoriesForCorrelation.forEach(category_id => {
-                        correlationDataCurr.push(this.plansMatrix[date]?.[category_id]?.sum || 0);
-                        correlationDataPrev.push(
-                            this.plansMatrix[dates[idx - 1]]?.[category_id]?.sum || 0
-                        );
-                    });
+        if (planSum) {
+            result[status].percentage = Math.round((actionsSum / planSum) * 100);
+        }
+    }
 
-                    const corr = getPearsonCorrelation(correlationDataCurr, correlationDataPrev);
-                    correlations[date] = {
-                        ...corr,
-                        k: +corr.k.toFixed(2),
-                    };
-                }
-            });
+    return result;
+});
 
-            return correlations;
-        },
-        plansByCategoriesFlatten() {
-            let plans = Object.fromEntries(this.categoriesStored.map(({ _id }) => [_id, []]));
-            this.plansStored.forEach(plan => {
-                plans[plan.category_id].push(cloneByJSON(plan));
-            });
-            return plans;
-        },
-        plansByCategories() {
-            return this.categoriesList.map(categsGroups => ({
-                ...categsGroups,
-                children: categsGroups.children.map(categ => {
-                    categ.plans = mapObject(
-                        getObjectFromArray(this.plansByCategoriesFlatten[categ._id], 'date'),
-                        (k, v) => {
-                            return [this.$dayjs(k).format('YYYY-MM'), v];
-                        },
-                        true
-                    );
-                    return categ;
-                }),
-            }));
-        },
-        plansByDates() {
-            let plans = Object.fromEntries(this.plansDates.map(date => [date, []]));
-            let sums = mapObject(plans, () => ({
-                income: 0,
-                expense: 0,
-            }));
-            this.plansStored.forEach(plan => {
-                const date = this.$dayjs(plan.date).format('YYYY-MM');
-                const status = this.categoriesObj[plan.category_id].status;
-                plans[date].push(cloneByJSON(plan));
-                sums[date][status] = Math.round((sums[date][status] + plan.sum) * 100) / 100;
-            });
-            return this.plansDates.map(date => {
-                return {
-                    date,
-                    sums: sums[date],
-                    plans: plans[date],
-                };
-            });
-        },
-        plansByDatesObj() {
-            return getObjectFromArray(this.plansByDates, 'date');
-        },
-        plansSmirnovStatistic() {
-            const matrix = {};
+const balancesByDates = computed(() => {
+    const result = {};
+    datesRange.value.forEach(date => {
+        const index = balances.value.findIndex(balance => balance.date === date);
 
-            if (this.filteredDates.length < 2 || this.filteredCategoryIds.length < 2) {
-                return {};
-            }
-            for (const date of this.filteredDates) {
-                // if (!this.filteredDates.includes(date)) continue;
-                if (!matrix[date]) {
-                    matrix[date] = {};
-                }
+        const balance = balances.value[index];
+        const prevBalance = balances.value[index - 1];
 
-                for (const category_id of this.filteredCategoryIds) {
-                    // if (!this.filteredCategoryIds.includes(category_id)) continue;
-                    if (matrix[date][category_id] === undefined) {
-                        matrix[date][category_id] = this.plansMatrix[date][category_id]?.sum || 0;
-                    }
-                }
-            }
+        result[date] = {
+            ...balance,
+            date,
+            defaultDiff: balance.default - prevBalance.default,
+            savingsDiff: balance.savings - prevBalance.savings,
+        };
+    });
 
-            for (const date in this.datesRange) {
-                if (!Object.values(matrix[date] || {}).reduce((sum, curr) => sum + curr, 0)) {
-                    delete matrix[date];
-                }
-            }
-
-            for (const category_id in matrix[Object.keys(matrix)[0]]) {
-                if (!Object.values(matrix).reduce((sum, curr) => sum + curr[category_id], 0)) {
-                    Object.values(matrix).forEach(
-                        statisticAtDate => delete statisticAtDate[category_id]
-                    );
-                }
-            }
-
-            console.log(matrix);
-            if (
-                Object.keys(matrix).length < 2 ||
-                Object.keys(matrix[Object.keys(matrix)[0]]).length < 2
-            ) {
-                return {};
-            }
-            return getSmirnovStatistic(matrix);
+    return result;
+});
+// const categoriesDeviations = computed(() => {
+//     const stdDevs = {};
+//     for (const category_id in this.plansByCategoriesFlatten) {
+//         const plansSums = this.plansByCategoriesFlatten[category_id].map(({ sum }) => sum);
+//         stdDevs[category_id] = getStandardDeviation(plansSums);
+//     }
+//     return stdDevs;
+// });
+// const categoriesForCorrelation = computed(() => {
+//     const data = Object.entries(this.categoriesDeviations).map(([_id, stdDev]) => ({
+//         _id,
+//         value: stdDev,
+//     }));
+//     return getIdsInNormalDistribution(data);
+// });
+const categoriesList = computed(() => {
+    let result = [
+        {
+            _id: 'income',
+            status: categoryStatusEnum.INCOME,
+            name: 'Доходы',
+            children: [],
         },
-        isMobileSize() {
-            return this.$store.getters['getWindowSizeState'];
+        {
+            _id: 'expense',
+            status: categoryStatusEnum.EXPENSE,
+            name: 'Расходы',
+            children: [],
         },
-        monthProgress() {
-            return Math.round((this.$dayjs().date() / this.$dayjs().daysInMonth()) * 100);
-        },
-    },
-    methods: {
-        toggleExpand(row, col) {
-            if (col?.no !== 0) return;
-            this.$refs.plansTable.toggleRowExpansion(row);
-        },
-        isCurrentMonth(date) {
-            return this.$dayjs(date).isSame(this.$dayjs(), 'month');
-        },
-        isYearStart(date) {
-            return this.$dayjs(date).month() === 0;
-        },
-        openPlanDialog() {
-            this.planDialog = true;
-        },
-        handleCancelPlan() {
-            this.planDialog = false;
-            this.isEditMode = false;
-            this.$router.push({
-                path: '/plans',
-                replace: true,
-            });
-        },
-        async callEditPlan(plan) {
-            if (plan?._id) this.isEditMode = true;
-            if (plan) {
-                await this.$router.push({
-                    path: '/plans',
-                    query: {
-                        ...plan,
-                        isEdit: !!plan?._id,
-                    },
-                    replace: true,
+    ];
+    result.forEach(block => {
+        block.children = [categoryTypeEnum.DEFAULT, categoryTypeEnum.SAVINGS]
+            .map(type => {
+                return categories.value[block.status][type].filter(({ _id }) => {
+                    return isShowFilteredOnly.value ? filteredCategoryIds.value.includes(_id) : true;
                 });
-            }
-            this.openPlanDialog();
-        },
-        //
-        openDeletingPlanDialog() {
-            this.deletingPlanDialog = true;
-        },
-        handleCancelDeletingPlan() {
-            this.deletingPlanDialog = false;
-        },
-        //
-        openExtendingPlanDialog() {
-            this.extendingPlanDialog = true;
-        },
-        handleCancelExtendingPlan() {
-            this.extendingPlanDialog = false;
-        },
-        //
-        handleCancelCategory() {
-            this.categoryDialog = false;
-            this.isEditCategory = false;
-            this.$router.push({
-                path: '/plans',
-                replace: true,
-            });
-        },
-        async callEditCategory(category_id) {
-            let editedCateg;
-            if (category_id) {
-                editedCateg = this.categoriesStored.find(({ _id }) => _id === category_id);
-            }
-            if (editedCateg) {
-                this.isEditCategory = true;
-                await this.$router.push({
-                    path: '/plans',
-                    query: {
-                        ...editedCateg,
-                        isEdit: true,
-                    },
-                    replace: true,
-                });
-            }
-            this.openCategoryDialog();
-        },
-        openCategoryDialog() {
-            this.categoryDialog = true;
-        },
-        //
-        async handleRecalcMonth() {
-            try {
-                await this.$confirm(
-                    'Восстановить прошлое значение планов будет нельзя',
-                    `Пересчитать планы на ${this.$dayjs().format('MMMM')}?`,
-                    {
-                        confirmButtonText: 'Пересчитать',
-                        confirmButtonClass: 'el-button--warning',
-                    }
-                );
+            })
+            .reduce((result, curr) => result?.concat(curr));
+    });
+    return result;
+});
+const plansDates = computed(() => {
+    return Object.keys(plansMatrix.value).sort();
+});
+const datesRange = computed(() => {
+    const firstDate = plansDates.value[0];
+    const lastDate = plansDates.value.at(-1);
+    const dates = [];
 
-                const plans = new Plans();
-                let changes = plans.recalcCurrentPlans();
+    let currentDate = firstDate;
+    while (currentDate <= lastDate) {
+        dates.push(currentDate);
+        currentDate = formatHelper.getISOYearMonthString(dayjs(currentDate).add(1, 'month'));
+    }
+    return dates;
+});
+const datesList = computed(() => {
+    const dates = [...datesRange.value];
 
-                await this.$store.dispatch('saveDataChanges', changes);
-                this.$message({
-                    type: 'success',
-                    message: 'Сохранено',
-                });
-            } catch (err) {
-                if (err === 'cancel') return;
-                notifyWrap(err);
-            }
-        },
-        //
-        openStatisticDialog() {
-            console.log('openStatisticDialog');
-            this.statisticDialog = true;
-        },
-        handleCancelStatistic(result) {
-            console.log('handleCancelStatistic', result);
-            if (result) {
-                this.filteredCategoryIds = result.categories_ids;
-                this.filteredDates = result.dates;
-                this.isShowFilteredOnly = result.isShowFilteredOnly;
-            }
-            this.statisticDialog = false;
-        },
-    },
+    for (let monthsNumber = 1; monthsNumber <= 12; monthsNumber++) {
+        dates.push(formatHelper.getISOYearMonthString(dayjs(dates.at(-1)).add(monthsNumber, 'month')));
+    }
+
+    return isShowFilteredOnly.value ? dates.filter(date => filteredDates.value.includes(date)) : dates;
+});
+// const correlationsByDates = computed(() => {
+//     const correlations = {};
+
+//     this.datesRange.forEach((date, idx, dates) => {
+//         const correlationDataCurr = [];
+//         const correlationDataPrev = [];
+//         if (idx) {
+//             this.categoriesForCorrelation.forEach(category_id => {
+//                 correlationDataCurr.push(this.plansMatrix[date]?.[category_id]?.sum || 0);
+//                 correlationDataPrev.push(this.plansMatrix[dates[idx - 1]]?.[category_id]?.sum || 0);
+//             });
+
+//             const corr = getPearsonCorrelation(correlationDataCurr, correlationDataPrev);
+//             correlations[date] = {
+//                 ...corr,
+//                 k: +corr.k.toFixed(2),
+//             };
+//         }
+//     });
+
+//     return correlations;
+// });
+// const plansSmirnovStatistic = computed(() => {
+//     const matrix = {};
+
+//     if (this.filteredDates.length < 2 || this.filteredCategoryIds.length < 2) {
+//         return {};
+//     }
+//     for (const date of this.filteredDates) {
+//         // if (!this.filteredDates.includes(date)) continue;
+//         if (!matrix[date]) {
+//             matrix[date] = {};
+//         }
+
+//         for (const category_id of this.filteredCategoryIds) {
+//             // if (!this.filteredCategoryIds.includes(category_id)) continue;
+//             if (matrix[date][category_id] === undefined) {
+//                 matrix[date][category_id] = this.plansMatrix[date][category_id]?.sum || 0;
+//             }
+//         }
+//     }
+
+//     for (const date in this.datesRange) {
+//         if (!Object.values(matrix[date] || {}).reduce((sum, curr) => sum + curr, 0)) {
+//             delete matrix[date];
+//         }
+//     }
+
+//     for (const category_id in matrix[Object.keys(matrix)[0]]) {
+//         if (!Object.values(matrix).reduce((sum, curr) => sum + curr[category_id], 0)) {
+//             Object.values(matrix).forEach(statisticAtDate => delete statisticAtDate[category_id]);
+//         }
+//     }
+
+//     console.log(matrix);
+//     if (Object.keys(matrix).length < 2 || Object.keys(matrix[Object.keys(matrix)[0]]).length < 2) {
+//         return {};
+//     }
+//     return getSmirnovStatistic(matrix);
+// });
+const isMobileSize = computed(() => {
+    return store.getters['getWindowSizeState'];
+});
+const monthProgress = computed(() => {
+    return Math.round((dayjs().date() / dayjs().daysInMonth()) * 100);
+});
+
+const toggleExpand = (row, col) => {
+    if (col?.no !== 0) return;
+    plansTable.value.toggleRowExpansion(row);
 };
+const isCurrentMonth = date => {
+    return dayjs(date).isSame(dayjs(), 'month');
+};
+const isYearStart = date => {
+    return dayjs(date).month() === 0;
+};
+const openPlanDialog = () => {
+    planDialog.value = true;
+};
+const handleCancelPlan = () => {
+    planDialog.value = false;
+    isEditMode.value = false;
+    router.push({
+        path: '/plans',
+        replace: true,
+    });
+};
+const callEditPlan = async plan => {
+    if (plan?._id) {
+        isEditMode.value = true;
+    }
+    await router.push({
+        path: '/plans',
+        query: {
+            ...plan,
+            isEdit: !!plan?._id,
+        },
+        replace: true,
+    });
+    openPlanDialog();
+};
+//
+const openDeletingPlanDialog = () => {
+    deletingPlanDialog.value = true;
+};
+const handleCancelDeletingPlan = () => {
+    deletingPlanDialog.value = false;
+};
+//
+const openExtendingPlanDialog = () => {
+    extendingPlanDialog.value = true;
+};
+const handleCancelExtendingPlan = () => {
+    extendingPlanDialog.value = false;
+};
+//
+const handleCancelCategory = () => {
+    categoryDialog.value = false;
+    isEditCategory.value = false;
+    router.push({
+        path: '/plans',
+        replace: true,
+    });
+};
+const callEditCategory = async category_id => {
+    try {
+        const editedCateg = await dbController.getCategory(category_id);
+
+        isEditCategory.value = true;
+        await router.push({
+            path: '/plans',
+            query: {
+                ...editedCateg,
+                isEdit: true,
+            },
+            replace: true,
+        });
+        openCategoryDialog();
+    } catch {}
+};
+const openCategoryDialog = () => {
+    categoryDialog.value = true;
+};
+//
+const handleRecalcMonth = async () => {
+    try {
+        await ElMessageBox.confirm(
+            'Восстановить прошлое значение планов будет нельзя',
+            `Пересчитать планы на ${dayjs().format('MMMM')}?`,
+            {
+                confirmButtonText: 'Пересчитать',
+                confirmButtonClass: 'el-button--warning',
+            }
+        );
+
+        await dbController.recalcPlansOfCurrentMonth();
+        await Promise.all([loadBalanceDynamic(), loadPlans()]);
+
+        ElMessage({
+            type: 'success',
+            message: 'Сохранено',
+        });
+    } catch (err) {
+        if (err === 'cancel') return;
+        notifyWrap(err);
+    }
+};
+//
+// const openStatisticDialog = () => {
+//     console.log('openStatisticDialog');
+//     this.statisticDialog = true;
+// };
+// const handleCancelStatistic = result => {
+//     console.log('handleCancelStatistic', result);
+//     if (result) {
+//         this.filteredCategoryIds = result.categories_ids;
+//         this.filteredDates = result.dates;
+//         this.isShowFilteredOnly = result.isShowFilteredOnly;
+//     }
+//     this.statisticDialog = false;
+// };
+
+const loadCategories = async () => {
+    try {
+        categories.value = await dbController.getCategoriesByGroups();
+    } catch (error) {
+        console.log(error);
+    }
+};
+
+const loadBalanceDynamic = async () => {
+    try {
+        balances.value = await dbController.getBalanceDynamic();
+    } catch (error) {
+        console.log(error);
+    }
+};
+
+const loadPlans = async () => {
+    try {
+        plansMatrix.value = await dbController.getPlansMatrix();
+    } catch (error) {
+        console.log(error);
+    }
+};
+
+const loadActionSums = async () => {
+    try {
+        actionSumsByCategoryIds.value = await dbController.getActionSumsByCategoryIds();
+    } catch (error) {
+        console.log(error);
+    }
+};
+
+const init = async () => {
+    console.log('init plans');
+
+    await Promise.all([loadCategories(), loadBalanceDynamic(), loadPlans(), loadActionSums()]);
+    isDataReady.value = true;
+};
+
+onMounted(() => {
+    init();
+});
 </script>
 <style scoped>
 .container {
@@ -1035,8 +914,8 @@ export default {
 .el-table {
     border-radius: 8px;
     border: 1px solid var(--el-color-gray-light-3);
-    --table-height: calc(100dvh - var(--header-height) - var(--footer-height-mobile) - 188px);
     --table-height: calc(100vh - var(--header-height) - var(--footer-height-mobile) - 188px);
+    --table-height: calc(100dvh - var(--header-height) - var(--footer-height-mobile) - 188px);
 }
 
 :deep(.el-table__header-wrapper) {
@@ -1163,6 +1042,9 @@ export default {
     font-weight: bold;
 }
 
+.table.empty {
+    height: 50vh;
+}
 .table .el-table {
     --el-table-border: 1px solid var(--el-color-gray-light-3);
 }
@@ -1290,8 +1172,8 @@ export default {
     }
 
     .el-table {
-        --table-height: calc(100dvh - var(--header-height) - var(--footer-height) - 152px);
         --table-height: calc(100vh - var(--header-height) - var(--footer-height) - 152px);
+        --table-height: calc(100dvh - var(--header-height) - var(--footer-height) - 152px);
     }
 }
 </style>

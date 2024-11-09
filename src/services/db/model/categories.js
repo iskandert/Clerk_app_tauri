@@ -33,14 +33,18 @@ const getCategoriesByGroups = async () => {
         const db = getDBInstanse();
         tx = db.transaction([CATEGORIES_STORE_NAME], READONLY);
         const categoriesStore = tx.objectStore(CATEGORIES_STORE_NAME);
-        const categoriesIndex = categoriesStore.index(STATUS_AND_TYPE_INDEX);
+        const categoriesIndex = categoriesStore.index(IS_ACCOUNTED_AND_STATUS_AND_TYPE_INDEX);
 
         const result = {};
         for (const status of Object.values(categoryStatusEnum)) {
             result[status] = {};
             for (const type of Object.values(categoryTypeEnum)) {
-                const categories = await categoriesIndex.getAll([status, type]);
-                result[status][type] = categories.sort((categA, categB) => categA.name.localeCompare(categB.name));
+                const categories = await categoriesIndex.getAll([1, status, type]);
+                const unaccountedCategories = await categoriesIndex.getAll([0, status, type]);
+                result[status][type] = [
+                    ...categories.sort((categA, categB) => categA.name.localeCompare(categB.name)),
+                    ...unaccountedCategories.sort((categA, categB) => categA.name.localeCompare(categB.name)),
+                ];
             }
         }
 

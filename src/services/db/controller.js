@@ -1,5 +1,5 @@
 import db from '../db';
-import { deleteAction, getAction, getActionsListByMonth, setAction } from './model/actions';
+import { deleteAction, getAction, getActionsListByMonth, getActionSumsByCategoryIds, setAction } from './model/actions';
 import {
     getCategoriesByGroups,
     getCategoriesList,
@@ -16,6 +16,7 @@ import {
     extendPlans,
     getPlan,
     getPlansMatrix,
+    recalcPlansOfCurrentMonth,
     recalcPlansOfMonth,
     setPlan,
     setSamePlans,
@@ -33,6 +34,7 @@ const dbController = {
     getAction,
     setAction,
     deleteAction,
+    getActionSumsByCategoryIds,
     getCategoriesByGroups,
     getCategoriesList,
     getCategory,
@@ -51,6 +53,7 @@ const dbController = {
     deletePlans,
     deletePlan,
     recalcPlansOfMonth: date => recalcPlansOfMonth(date),
+    recalcPlansOfCurrentMonth,
     getPlansMatrix,
     ensurePastPlans: () => ensurePastPlans(),
 };

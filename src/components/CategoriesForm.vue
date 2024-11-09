@@ -13,7 +13,7 @@
             >
                 <el-input v-model="newCategory.name"></el-input>
             </el-form-item>
-            <div>
+            <div v-if="!isEditMode">
                 <el-form-item
                     label="Направление финансов"
                     prop="status"

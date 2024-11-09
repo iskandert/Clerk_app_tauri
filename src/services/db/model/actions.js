@@ -232,4 +232,44 @@ const _updateDataByAction = async ({ newAction = null, oldAction = null, transac
     }
 };
 
-export { getActionsListByMonth, getAction, setAction, deleteAction };
+const getActionSumsByCategoryIds = async (ISOYearMonth = formatHelper.getISOYearMonthString()) => {
+    if (ISOYearMonth && !schemaHelper.plan.validator.date(ISOYearMonth)) {
+        throw errorHelper.create.validation('getActionSumsByCategoryIds', { ISOYearMonth });
+    }
+
+    let tx;
+    try {
+        const db = getDBInstanse();
+        tx = db.transaction([CATEGORIES_STORE_NAME, ACTIONS_STORE_NAME], READONLY);
+        const categoriesStore = tx.objectStore(CATEGORIES_STORE_NAME);
+        const actionsIndex = tx.objectStore(ACTIONS_STORE_NAME).index(CATEGORY_ID_AND_DATE_INDEX);
+
+        const categoryIds = await categoriesStore.getAllKeys();
+        const firstDate = `${ISOYearMonth || formatHelper.getISOYearMonthString()}-01`;
+        const currMonth = formatHelper.getISOYearMonthString();
+        const lastDate =
+            ISOYearMonth === currMonth
+                ? formatHelper.getISODateString()
+                : formatHelper.getISODateString(dayjs(firstDate).date(1).add(1, 'month').subtract(1, 'day'));
+
+        console.log(firstDate, lastDate);
+
+        const result = Object.fromEntries(
+            await Promise.all(
+                categoryIds.map(async id => {
+                    const actions = await actionsIndex.getAll(IDBKeyRange.bound([id, firstDate], [id, lastDate]));
+                    return [id, actions.reduce((sum, action) => sum + action.sum, 0)];
+                })
+            )
+        );
+        await tx.done;
+        return result;
+    } catch (error) {
+        try {
+            tx?.abort();
+        } catch {}
+        errorHelper.throwCustomOrInternal(error);
+    }
+};
+
+export { getActionsListByMonth, getAction, setAction, deleteAction, getActionSumsByCategoryIds };
