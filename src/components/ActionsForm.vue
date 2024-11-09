@@ -333,11 +333,9 @@ const processAction = mode => {
             if (mode === 'add') {
                 await dbController.setAction(params);
             }
-            cancelAdding();
-            // await store.dispatch('saveDataChanges', changes);
-            console.log('proccessed');
-
             emit('update-action');
+            cancelAdding();
+
             ElMessage({
                 type: 'success',
                 message: 'Сохранено',

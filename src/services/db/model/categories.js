@@ -27,7 +27,7 @@ const {
 
 const { READONLY, READWRITE } = dbModeEnum;
 
-const getCategoriesByGroups = async () => {
+const getCategoriesByGroups = async (onlyAccounted = false) => {
     let tx;
     try {
         const db = getDBInstanse();
@@ -40,7 +40,10 @@ const getCategoriesByGroups = async () => {
             result[status] = {};
             for (const type of Object.values(categoryTypeEnum)) {
                 const categories = await categoriesIndex.getAll([1, status, type]);
-                const unaccountedCategories = await categoriesIndex.getAll([0, status, type]);
+                let unaccountedCategories = [];
+                if (!onlyAccounted) {
+                    unaccountedCategories = await categoriesIndex.getAll([0, status, type]);
+                }
                 result[status][type] = [
                     ...categories.sort((categA, categB) => categA.name.localeCompare(categB.name)),
                     ...unaccountedCategories.sort((categA, categB) => categA.name.localeCompare(categB.name)),
