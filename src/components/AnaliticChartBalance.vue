@@ -1,7 +1,11 @@
 <template>
     <el-card>
         <h4>Динамика остатка по месяцам</h4>
-        <div class="chart-container">
+        <p v-if="!balances">Загрузка...</p>
+        <div
+            v-else
+            class="chart-container"
+        >
             <Line
                 :data="data"
                 :options="options"
@@ -9,7 +13,7 @@
         </div>
     </el-card>
 </template>
-<script>
+<script setup>
 import {
     Chart as ChartJS,
     CategoryScale,
@@ -23,150 +27,119 @@ import {
 } from 'chart.js';
 import { Line } from 'vue-chartjs';
 import { getCssVar, getFormattedCount } from '../services/utils';
+import { computed, onMounted, ref } from 'vue';
+import dbController from '../services/db/controller';
+import dayjs from 'dayjs';
 
-ChartJS.register(
-    CategoryScale,
-    LinearScale,
-    PointElement,
-    LineElement,
-    Title,
-    Tooltip,
-    Legend,
-    Filler
-);
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
-export default {
-    components: { Line },
-    props: {},
-    data() {
-        return {};
-    },
-    computed: {
-        balances() {
-            const balancesByDates = this.$store.getters.getCalcs('balancesByDates') || {};
-            const balancesByDatesArrayed = Object.entries(balancesByDates)
-                .map(([date, balanceData]) => {
-                    return {
-                        date,
-                        balance: balanceData.balance,
-                        savings: balanceData.savings,
-                        total: balanceData.balance + balanceData.savings,
-                    };
-                })
-                .sort(({ date: date1 }, { date: date2 }) => {
-                    if (date1 < date2) return -1;
-                    if (date1 > date2) return 1;
-                    return 0;
-                })
-                .map(balanceData => {
-                    return {
-                        ...balanceData,
-                        date: this.$dayjs(balanceData.date).format('YYYY MMMM'),
-                    };
-                });
-            return balancesByDatesArrayed;
+const balances = ref(null);
+
+const data = computed(() => {
+    return {
+        labels: balances.value.map(({ date }) => date),
+        datasets: [
+            {
+                label: 'Остаток',
+                data: balances.value.map(balance => balance.default),
+                backgroundColor: getCssVar('--el-color-gray-light-5'),
+                borderColor: getCssVar('--el-color-gray-light-3'),
+                fill: {
+                    target: true,
+                    above: getCssVar('--el-color-gray-light-5') + '40',
+                    below: getCssVar('--el-color-danger') + '40',
+                },
+                tooltip: {
+                    callbacks: {
+                        label: context => {
+                            return ' ' + getFormattedCount(context.raw, { accuracy: 0 }) + ' - остаток';
+                        },
+                    },
+                },
+            },
+            {
+                label: 'C накоплениями',
+                data: balances.value.map(({ total }) => total),
+                backgroundColor: getCssVar('--el-color-primary'),
+                borderColor: getCssVar('--el-color-primary-light-3'),
+                fill: {
+                    target: 0,
+                    above: getCssVar('--el-color-primary') + '40',
+                    below: getCssVar('--el-color-gray-light-5') + '40',
+                },
+                tooltip: {
+                    callbacks: {
+                        label: context => {
+                            return (
+                                ' ' +
+                                getFormattedCount(balances.value[context.dataIndex].savings || 0, { accuracy: 0 }) +
+                                ' - накопления'
+                            );
+                        },
+                        beforeLabel: context => {
+                            return ' ' + getFormattedCount(context.raw, { accuracy: 0 }) + ' - с остатком';
+                        },
+                    },
+                },
+            },
+        ],
+    };
+});
+const options = computed(() => {
+    return {
+        responsive: true,
+        maintainAspectRatio: false,
+        elements: {
+            point: {
+                radius: 5,
+                hoverRadius: 7,
+            },
+            line: {
+                cubicInterpolationMode: 'monotone',
+            },
         },
-        data() {
+        scales: {
+            y: {
+                min: Math.min(0, ...balances.value.map(balance => balance.default)) && undefined,
+                max: Math.max(0, ...balances.value.map(({ total }) => total)) && undefined,
+            },
+        },
+        plugins: {
+            legend: {
+                display: true,
+                labels: {
+                    usePointStyle: true,
+                },
+            },
+            tooltip: {
+                callbacks: {
+                    label: function (context) {
+                        return getFormattedCount(context.raw || 0, { accuracy: 0 });
+                    },
+                },
+            },
+        },
+    };
+});
+
+const loadBalanceDynamic = async () => {
+    try {
+        const resp = await dbController.getBalanceDynamic();
+        balances.value = resp.slice(1).map(balance => {
             return {
-                labels: this.balances.map(({ date }) => date),
-                datasets: [
-                    {
-                        label: 'Остаток',
-                        data: this.balances.map(({ balance }) => balance),
-                        backgroundColor: getCssVar('--el-color-gray-light-5'),
-                        borderColor: getCssVar('--el-color-gray-light-3'),
-                        fill: {
-                            target: true,
-                            above: getCssVar('--el-color-gray-light-5') + '40',
-                            below: getCssVar('--el-color-danger') + '40',
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: context => {
-                                    return (
-                                        ' ' +
-                                        getFormattedCount(context.raw, { accuracy: 0 }) +
-                                        ' - остаток'
-                                    );
-                                },
-                            },
-                        },
-                    },
-                    {
-                        label: 'C накоплениями',
-                        data: this.balances.map(({ total }) => total),
-                        backgroundColor: getCssVar('--el-color-primary'),
-                        borderColor: getCssVar('--el-color-primary-light-3'),
-                        fill: {
-                            target: 0,
-                            above: getCssVar('--el-color-primary') + '40',
-                            below: getCssVar('--el-color-gray-light-5') + '40',
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: context => {
-                                    return (
-                                        ' ' +
-                                        getFormattedCount(
-                                            this.balances[context.dataIndex].savings || 0,
-                                            { accuracy: 0 }
-                                        ) +
-                                        ' - накопления'
-                                    );
-                                },
-                                beforeLabel: context => {
-                                    return (
-                                        ' ' +
-                                        getFormattedCount(context.raw, { accuracy: 0 }) +
-                                        ' - с остатком'
-                                    );
-                                },
-                            },
-                        },
-                    },
-                ],
+                ...balance,
+                date: dayjs(balance.date).format('YYYY MMMM'),
+                total: balance.default + balance.savings,
             };
-        },
-        options() {
-            return {
-                responsive: true,
-                maintainAspectRatio: false,
-                elements: {
-                    point: {
-                        radius: 5,
-                        hoverRadius: 7,
-                    },
-                    line: {
-                        cubicInterpolationMode: 'monotone',
-                    },
-                },
-                scales: {
-                    y: {
-                        min:
-                            Math.min(0, ...this.balances.map(({ balance }) => balance)) &&
-                            undefined,
-                        max: Math.max(0, ...this.balances.map(({ total }) => total)) && undefined,
-                    },
-                },
-                plugins: {
-                    legend: {
-                        display: true,
-                        labels: {
-                            usePointStyle: true,
-                        },
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function (context) {
-                                return getFormattedCount(context.raw || 0, { accuracy: 0 });
-                            },
-                        },
-                    },
-                },
-            };
-        },
-    },
+        });
+    } catch (error) {
+        console.log(error);
+    }
 };
+
+onMounted(() => {
+    loadBalanceDynamic();
+});
 </script>
 <style scoped>
 .chart-container {

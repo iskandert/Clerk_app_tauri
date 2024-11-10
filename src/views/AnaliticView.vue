@@ -1,6 +1,6 @@
 <template>
     <div class="container">
-        <AnaliticChartCorrelation />
+        <!-- <AnaliticChartCorrelation /> -->
         <AnaliticChartBalance />
     </div>
 </template>
