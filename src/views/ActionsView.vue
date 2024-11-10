@@ -254,7 +254,7 @@
     </div>
 </template>
 <script setup>
-import { computed, onMounted, ref, shallowRef, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 import ActionsForm from '../components/ActionsForm.vue';
 import BalanceForm from '../components/BalanceForm.vue';
 import { dayjs, getEntityField, getFormattedCount } from '../services/utils';
@@ -265,6 +265,7 @@ import router from '../router';
 import { useRoute } from 'vue-router';
 import dbController from '../services/db/controller';
 import formatHelper from '../services/helpers/formatHelper';
+import emitHelper from '../services/helpers/emitHelper';
 
 const route = useRoute();
 
@@ -415,8 +416,12 @@ watch(currentMonthFormatted, () => loadActions());
 
 onMounted(async () => {
     await init();
+    emitHelper.on('update-all', init);
 
     if (JSON.parse(route?.query?.mobile || 'false')) actionDialog.value = true;
+});
+onBeforeUnmount(() => {
+    emitHelper.off('update-all', init);
 });
 </script>
 <style scoped>

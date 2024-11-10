@@ -48,11 +48,11 @@
                     ></el-button>
                     <template #dropdown>
                         <el-dropdown-menu>
-                            <el-dropdown-item
+                            <!-- <el-dropdown-item
                                 :icon="iconUser"
                                 disabled
                                 >Профиль</el-dropdown-item
-                            >
+                            > -->
                             <el-dropdown-item
                                 :icon="iconFull"
                                 class="desktop-only"
@@ -77,23 +77,25 @@
                                 @click="handleUploadClick"
                                 >Загрузить данные</el-dropdown-item
                             >
-                            <el-dropdown-item
+                            <!-- <el-dropdown-item
                                 :icon="iconMagic"
                                 @click="handleRandomClick"
                                 >Рандомизировать</el-dropdown-item
-                            >
+                            > -->
+                            <!-- :icon="iconExit" -->
                             <el-dropdown-item
-                                :icon="iconExit"
+                                :icon="iconDelete"
                                 @click="handleSignoutClick"
-                                >Выйти</el-dropdown-item
+                                class="delete_opt"
+                                >Очистить данные</el-dropdown-item
                             >
-                            <el-dropdown-item
+                            <!-- <el-dropdown-item
                                 :icon="iconDelete"
                                 @click="handleDeleteClick"
                                 class="delete_opt"
                             >
                                 Удалить данные
-                            </el-dropdown-item>
+                            </el-dropdown-item> -->
                         </el-dropdown-menu>
                     </template>
                 </el-dropdown>
@@ -105,194 +107,169 @@
             ref="fileInput"
             style="display: none"
             accept=".txt"
-            @change="handleFileChange"
+            @change="processFile"
         />
     </div>
 </template>
-<script>
+<script setup>
 import AuthBar from './AuthBar.vue';
 import LogoIcon from '../components/icons/LogoIcon.vue';
 import LogoText from '../components/icons/LogoText.vue';
-import { shallowRef } from 'vue';
-import {
-    Tools,
-    Close,
-    User,
-    Delete,
-    FullScreen,
-    Aim,
-    Upload,
-    Download,
-    MagicStick,
-} from '@element-plus/icons-vue';
+import { computed, ref, shallowRef } from 'vue';
+import { Tools, Close, User, Delete, FullScreen, Aim, Upload, Download, MagicStick } from '@element-plus/icons-vue';
 import { notifyWrap } from '../services/utils';
 import { Actions, Plans } from '../services/changings';
+import { onMounted } from 'vue';
+import store from '../store';
+import router from '../router';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import dbController from '../services/db/controller';
+import emitHelper from '../services/helpers/emitHelper';
+import { dbSettings } from '../services/db/config';
 
-export default {
-    components: { AuthBar, LogoIcon, LogoText },
-    setup() {
-        return {
-            iconSetting: shallowRef(Tools),
-            iconUser: shallowRef(User),
-            iconExit: shallowRef(Close),
-            iconDelete: shallowRef(Delete),
-            iconFull: shallowRef(FullScreen),
-            iconNorm: shallowRef(Aim),
-            iconDownload: shallowRef(Download),
-            iconUpload: shallowRef(Upload),
-            iconMagic: shallowRef(MagicStick),
-        };
-    },
-    computed: {
-        pagePath() {
-            return this.$route.name;
-        },
-        isFullMode() {
-            return this.$store.getters.getScreenMode;
-        },
-    },
-    methods: {
-        jumpRoute(path) {
-            this.$router.push({ path });
-        },
-        async handleSignoutClick() {
-            console.log('signout');
-            this.$confirm('Вы хотите выйти из системы?', '', {
-                confirmButtonText: 'Да',
-                cancelButtonText: 'Нет',
-                type: 'warning',
-            })
-                .then(() => {
-                    // this.$store.dispatch('logout');
-                    this.$store.dispatch('logoutLocal');
-                    this.$message({
-                        type: 'success',
-                        message: 'Вышли',
-                    });
-                })
-                .then(() => this.$router.push({ path: '/login' }))
-                .catch(() => {
-                    this.$message({
-                        type: 'info',
-                        message: 'Действие отменено',
-                    });
-                });
-            // this.$store.dispatch('logout')
-        },
-        async handleDeleteClick() {
-            try {
-                await this.$prompt(
-                    `Если вы действительно хотите удалить данные приложения, 
-        введите "Удалить" в поле ниже. Данные будут стерты с Google диска. 
-        Отменить действие будет невозможно. `,
-                    'Подтвердите удаление',
-                    {
-                        confirmButtonText: 'Удалить',
-                        cancelButtonText: 'Отмена',
-                        inputPlaceholder: 'Удалить',
-                        inputPattern: /Удалить/,
-                        inputErrorMessage: 'Неверный ввод',
-                        confirmButtonClass: 'el-button--danger',
-                        type: 'warning',
-                    }
-                );
-                // await this.$store.dispatch('deleteDataList', { col: 'data' });
-                this.$store.dispatch('deleteData');
-                this.$message({
-                    type: 'success',
-                    message: 'Удалено',
-                });
-                // this.$store.dispatch('logout');
-            } catch (e) {
-                if (e === 'cancel')
-                    return this.$message({
-                        type: 'info',
-                        message: 'Удаление отменено',
-                    });
-                if (!this.$store.getters.isLoggedIn) return;
-                notifyWrap(e);
-            }
-        },
-        handleScreenModeClick(value) {
-            this.$store.commit('SET_SCREEN_MODE', value);
-        },
-        handleDownloadClick() {
-            const link = document.createElement('a');
-            const data = this.$store.getters.getList('data');
-            const arrayedData = [];
-            for (const field in data) {
-                arrayedData.push({
-                    field,
-                    data: data[field].data,
-                });
-            }
-            link.href = window.URL.createObjectURL(new Blob([JSON.stringify(arrayedData)]));
-            const suffix = new Date().toISOString().replace(/:|-|\.|T|Z/g, '');
-            link.setAttribute('download', `clerk_data_${suffix}.txt`);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        },
-        handleUploadClick() {
-            this.$refs.fileInput.click();
-        },
-        handleFileChange(event) {
-            const file = event.target.files[0];
-            const reader = new FileReader();
+const iconSetting = shallowRef(Tools);
+const iconUser = shallowRef(User);
+const iconExit = shallowRef(Close);
+const iconDelete = shallowRef(Delete);
+const iconFull = shallowRef(FullScreen);
+const iconNorm = shallowRef(Aim);
+const iconDownload = shallowRef(Download);
+const iconUpload = shallowRef(Upload);
+const iconMagic = shallowRef(MagicStick);
+const fileInput = ref(null);
 
-            reader.onload = async () => {
-                const fileContent = reader.result;
-                try {
-                    const parsedData = JSON.parse(fileContent);
-                    for (const { field, data } of parsedData) {
-                        if (
-                            !data ||
-                            (field === 'config' &&
-                                !(typeof data === 'object' && !Array.isArray(data))) ||
-                            (field !== 'config' && !Array.isArray(data))
-                        ) {
-                            throw new Error('Файл поврежден');
-                        }
-                    }
-                    await this.$store.dispatch('saveDataChanges', parsedData);
+const isFullMode = computed(() => {
+    return store.getters.getScreenMode;
+});
 
-                    const actions = new Actions();
-                    const changesActions = actions.simplifyByDays();
-                    await this.$store.dispatch('saveDataChanges', changesActions);
-                    const plans = new Plans();
-                    const changes = plans.checkPlans();
-                    await this.$store.dispatch('saveDataChanges', changes);
-
-                    this.$message({
-                        type: 'success',
-                        message: 'Сохранено',
-                    });
-                } catch (error) {
-                    notifyWrap(error);
-                }
-            };
-
-            reader.readAsText(file);
-        },
-        async handleRandomClick() {
-            const actions = new Actions();
-            let changes = actions.randomize();
-            await this.$store.dispatch('saveDataChanges', changes);
-
-            const plans = new Plans();
-            changes = plans.checkPlans();
-            await this.$store.dispatch('saveDataChanges', changes);
-
-            this.$message({
-                type: 'success',
-                message: 'Сохранено',
-            });
-        },
-    },
-    mounted() {
-        console.log(this.$store.state.data);
-    },
+const jumpRoute = path => {
+    router.push({ path });
 };
+const handleSignoutClick = async () => {
+    console.log('signout');
+    ElMessageBox.confirm('Вы хотите очистить данные и выйти?', '', {
+        confirmButtonText: 'Да',
+        cancelButtonText: 'Нет',
+        type: 'warning',
+    })
+        .then(() => {
+            clearData();
+
+            ElMessage({
+                type: 'success',
+                message: 'Данные очищены',
+            });
+        })
+        .then(() => router.push({ path: '/login' }))
+        .catch(() => {
+            ElMessage({
+                type: 'info',
+                message: 'Действие отменено',
+            });
+        });
+    // store.dispatch('logout')
+};
+// const handleDeleteClick = async () => {
+//     try {
+//         await ElMessageBox.prompt(
+//             `Если вы действительно хотите удалить данные приложения,
+//         введите "Удалить" в поле ниже. Данные будут стерты с Google диска.
+//         Отменить действие будет невозможно. `,
+//             'Подтвердите удаление',
+//             {
+//                 confirmButtonText: 'Удалить',
+//                 cancelButtonText: 'Отмена',
+//                 inputPlaceholder: 'Удалить',
+//                 inputPattern: /Удалить/,
+//                 inputErrorMessage: 'Неверный ввод',
+//                 confirmButtonClass: 'el-button--danger',
+//                 type: 'warning',
+//             }
+//         );
+//         // await store.dispatch('deleteDataList', { col: 'data' });
+//         store.dispatch('deleteData');
+//         ElMessage({
+//             type: 'success',
+//             message: 'Удалено',
+//         });
+//         // store.dispatch('logout');
+//     } catch (e) {
+//         if (e === 'cancel')
+//             return ElMessage({
+//                 type: 'info',
+//                 message: 'Удаление отменено',
+//             });
+//         if (!store.getters.isLoggedIn) return;
+//         notifyWrap(e);
+//     }
+// };
+const handleScreenModeClick = value => {
+    store.commit('SET_SCREEN_MODE', value);
+};
+const handleDownloadClick = async () => {
+    try {
+        const link = document.createElement('a');
+        const data = await dbController.dump();
+
+        link.href = window.URL.createObjectURL(new Blob([JSON.stringify(data)]));
+        const suffix = new Date().toISOString().replace(/:|-|\.|T|Z/g, '');
+        link.setAttribute('download', `clerk_data_v${dbSettings.DB_VERSION}_${suffix}.txt`);
+
+        document.body.appendChild(link);
+        link.click();
+
+        document.body.removeChild(link);
+    } catch (error) {}
+};
+const handleUploadClick = async () => {
+    fileInput.value.click();
+};
+const clearData = async () => {
+    await dbController.destroy();
+    await dbController.init();
+};
+const processFile = async event => {
+    const file = event.target.files[0];
+    const reader = new FileReader();
+
+    try {
+        reader.onload = async () => {
+            const fileContent = reader.result;
+            try {
+                await clearData();
+                const parsedData = JSON.parse(fileContent);
+                dbController.fill(parsedData);
+
+                ElMessage({
+                    type: 'success',
+                    message: 'Сохранено',
+                });
+                emitHelper.emit('update-all');
+            } catch (error) {
+                console.log(error);
+                notifyWrap(error);
+            }
+        };
+
+        reader.readAsText(file);
+    } catch (error) {
+        console.log(error);
+    }
+};
+// const handleRandomClick = async () => {
+//     const actions = new Actions();
+//     let changes = actions.randomize();
+//     await store.dispatch('saveDataChanges', changes);
+
+//     const plans = new Plans();
+//     changes = plans.checkPlans();
+//     await store.dispatch('saveDataChanges', changes);
+
+//     ElMessage({
+//         type: 'success',
+//         message: 'Сохранено',
+//     });
+// };
 </script>
 <style scoped>
 .container {

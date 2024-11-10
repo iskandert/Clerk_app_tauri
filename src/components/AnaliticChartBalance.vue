@@ -27,9 +27,10 @@ import {
 } from 'chart.js';
 import { Line } from 'vue-chartjs';
 import { getCssVar, getFormattedCount } from '../services/utils';
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import dbController from '../services/db/controller';
 import dayjs from 'dayjs';
+import emitHelper from '../services/helpers/emitHelper';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
@@ -138,7 +139,11 @@ const loadBalanceDynamic = async () => {
 };
 
 onMounted(() => {
+    emitHelper.on('update-all', loadBalanceDynamic);
     loadBalanceDynamic();
+});
+onBeforeUnmount(() => {
+    emitHelper.off('update-all', loadBalanceDynamic);
 });
 </script>
 <style scoped>

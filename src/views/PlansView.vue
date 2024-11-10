@@ -456,7 +456,7 @@
     </div>
 </template>
 <script setup>
-import { onMounted, shallowRef } from 'vue';
+import { onBeforeUnmount, onMounted, shallowRef } from 'vue';
 import ActionsBar from '../components/ActionsBar.vue';
 import PlansBalance from '../components/PlansBalance.vue';
 import PlansItem from '../components/PlansItem.vue';
@@ -504,6 +504,7 @@ import dayjs from 'dayjs';
 import store from '../store';
 import router from '../router';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import emitHelper from '../services/helpers/emitHelper';
 
 const iconLock = shallowRef(Lock);
 const iconCoin = shallowRef(Coin);
@@ -880,6 +881,7 @@ const loadActionSums = async () => {
 };
 
 const init = async () => {
+    isDataReady.value = false;
     console.log('init plans');
 
     await Promise.all([loadCategories(), loadBalanceDynamic(), loadPlans(), loadActionSums()]);
@@ -887,7 +889,12 @@ const init = async () => {
 };
 
 onMounted(() => {
+    emitHelper.on('update-all', init);
+
     init();
+});
+onBeforeUnmount(() => {
+    emitHelper.off('update-all', init);
 });
 </script>
 <style scoped>
