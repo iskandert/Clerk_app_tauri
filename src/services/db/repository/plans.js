@@ -112,7 +112,6 @@ const _updatePlanByAction = async ({ action, isDeleted, transaction = null }) =>
     try {
         const date = formatHelper.getISOYearMonthFromISODateString(action.date);
         const record = (await _getPlans({ date, category_id: action.category_id, transaction }))[0];
-        if (date >= formatHelper.getISOYearMonthString()) return record || null;
 
         let data;
         if (!record && !isDeleted) {
