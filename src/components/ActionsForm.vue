@@ -232,7 +232,12 @@
             <CategoriesForm
                 @call-to-end="handleCancelCategory"
                 class="dialog"
-                @update-category="emit('update-category')"
+                @update-category="
+                    () => {
+                        emit('update-category');
+                        loadCategories();
+                    }
+                "
             />
         </el-dialog>
     </el-card>
@@ -316,23 +321,23 @@ const openFullForm = () => {
 const processAction = mode => {
     const process = async () => {
         try {
-            // const actions = new Actions();
-            // let changes;
             if (mode === 'delete') {
                 await dbController.deleteAction(newAction.value._id);
-            }
-            const params = {};
-            params.category_id = newAction.value.category_id;
-            params.sum = +newAction.value.sum;
-            params.date = formatHelper.getISODateString(newAction.value.date);
-            params.comment = newAction.value.comment || null;
+            } else {
+                const params = {};
+                params.category_id = newAction.value.category_id;
+                params.sum = +newAction.value.sum || 0;
+                params.date = formatHelper.getISODateString(newAction.value.date);
+                params.comment = newAction.value.comment || null;
 
-            if (mode === 'change') {
-                await dbController.setAction(params, newAction.value._id);
+                if (mode === 'change') {
+                    await dbController.setAction(params, newAction.value._id);
+                }
+                if (mode === 'add') {
+                    await dbController.setAction(params);
+                }
             }
-            if (mode === 'add') {
-                await dbController.setAction(params);
-            }
+
             emit('update-action');
             cancelAdding();
 

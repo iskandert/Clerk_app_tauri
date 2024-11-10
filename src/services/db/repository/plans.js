@@ -66,7 +66,7 @@ const _setPlan = async ({ data, _id = null, needUpdateTime = true, transaction =
             await store.index(CATEGORY_ID_AND_DATE_INDEX).getAll([record.category_id, record.date])
         ).filter(({ _id }) => _id !== record._id);
 
-        for (plan of samePlans) {
+        for (const plan of samePlans) {
             await store.delete(plan._id);
         }
 

@@ -10,8 +10,8 @@
                             :type="isShowedDinamic ? 'primary' : ''"
                             round
                             plain
-                            :icon="iconLock"
                         >
+                            <!-- :icon="iconLock" -->
                             Динамика
                         </el-button>
                         <!-- <el-button
@@ -404,6 +404,12 @@
                         loadPlans();
                     }
                 "
+                @update-category="
+                    async () => {
+                        await loadActionSums();
+                        await loadCategories();
+                    }
+                "
                 class="dialog"
             />
         </el-dialog>
@@ -420,7 +426,12 @@
             </template>
             <CategoriesForm
                 @call-to-end="handleCancelCategory"
-                @update-category="loadCategories"
+                @update-category="
+                    async () => {
+                        await loadActionSums();
+                        await loadCategories();
+                    }
+                "
                 class="dialog"
             />
         </el-dialog>

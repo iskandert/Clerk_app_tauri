@@ -15,7 +15,6 @@
                     v-model="newPlan.sum"
                     :min="1"
                     :step="1000"
-                    @change="sumPartsAll = []"
                 />
             </el-form-item>
             <el-form-item
@@ -27,40 +26,54 @@
                     filterable
                     default-first-option
                 >
-                    <li class="button_add-category">
-                        <el-button
-                            type="primary"
-                            round
-                            :icon="iconPlus"
-                            @click="openCategoryDialog"
-                        >
-                            Создать новую
-                        </el-button>
-                    </li>
-                    <el-option-group label="Расходы">
-                        <el-option
-                            v-for="({ name, _id }, index) in categories?.expense"
-                            :key="index"
-                            :value="_id"
-                            :label="name"
-                        ></el-option>
-                    </el-option-group>
-                    <el-option-group label="Доходы">
-                        <el-option
-                            v-for="({ name, _id }, index) in categories?.income"
-                            :key="index"
-                            :value="_id"
-                            :label="name"
-                        ></el-option>
-                    </el-option-group>
-                    <el-option-group label="Накопления">
-                        <el-option
-                            v-for="({ name, _id }, index) in categories?.savings"
-                            :key="index"
-                            :value="_id"
-                            :label="name"
-                        ></el-option>
-                    </el-option-group>
+                    <template v-if="categories">
+                        <li class="button_add-category">
+                            <el-button
+                                type="primary"
+                                round
+                                :icon="iconPlus"
+                                @click="openCategoryDialog"
+                            >
+                                Создать новую
+                            </el-button>
+                        </li>
+                        <el-option-group label="Расходы">
+                            <el-option
+                                v-for="{ name, _id } in categories[categoryStatusEnum.EXPENSE][
+                                    categoryTypeEnum.DEFAULT
+                                ]"
+                                :key="_id"
+                                :value="_id"
+                                :label="name"
+                            ></el-option>
+                        </el-option-group>
+                        <el-option-group label="В накопления">
+                            <el-option
+                                v-for="{ name, _id } in categories[categoryStatusEnum.EXPENSE][
+                                    categoryTypeEnum.SAVINGS
+                                ]"
+                                :key="_id"
+                                :value="_id"
+                                :label="name"
+                            ></el-option>
+                        </el-option-group>
+                        <el-option-group label="Доходы">
+                            <el-option
+                                v-for="{ name, _id } in categories[categoryStatusEnum.INCOME][categoryTypeEnum.DEFAULT]"
+                                :key="_id"
+                                :value="_id"
+                                :label="name"
+                            ></el-option>
+                        </el-option-group>
+                        <el-option-group label="Из накоплений">
+                            <el-option
+                                v-for="{ name, _id } in categories[categoryStatusEnum.INCOME][categoryTypeEnum.SAVINGS]"
+                                :key="_id"
+                                :value="_id"
+                                :label="name"
+                            ></el-option>
+                        </el-option-group>
+                    </template>
                 </el-select>
             </el-form-item>
             <el-form-item
@@ -69,7 +82,7 @@
             >
                 <el-date-picker
                     v-model="newPlan.date"
-                    :disabled-date="time => $dayjs(time).isBefore($dayjs(), 'month')"
+                    :disabled-date="time => dayjs(time).isBefore(dayjs(), 'month')"
                     type="month"
                     placeholder="Выберите дату"
                     format="MMMM YYYY"
@@ -81,7 +94,7 @@
             >
                 <el-date-picker
                     v-model="newPlan.dateLast"
-                    :disabled-date="time => !$dayjs(time).isAfter($dayjs(newPlan.date), 'month')"
+                    :disabled-date="time => !dayjs(time).isAfter(dayjs(newPlan.date), 'month')"
                     type="month"
                     placeholder="Выберите дату"
                     format="MMMM YYYY"
@@ -149,18 +162,31 @@
             </template>
             <CategoriesForm
                 @call-to-end="handleCancelCategory"
+                @update-category="
+                    () => {
+                        emit('update-category');
+                        loadCategories();
+                    }
+                "
                 class="dialog"
             />
         </el-dialog>
     </div>
 </template>
-<script>
+<script setup>
 import { CirclePlusFilled, Select, Delete, CloseBold } from '@element-plus/icons-vue';
-import { shallowRef } from 'vue';
+import { computed, onMounted, shallowRef, watch } from 'vue';
 import { cloneByJSON, notifyWrap } from '../services/utils';
 import { Plans } from '../services/changings';
 import InfoBalloon from '../components/InfoBalloon.vue';
 import CategoriesForm from './CategoriesForm.vue';
+import { ref } from 'vue';
+import dbController from '../services/db/controller';
+import router from '../router';
+import dayjs from 'dayjs';
+import { ElMessage, ElMessageBox, ElNotification } from 'element-plus';
+import { categoryStatusEnum, categoryTypeEnum } from '../services/constants';
+import formatHelper from '../services/helpers/formatHelper';
 
 const clearPlan = {
     _id: undefined,
@@ -171,168 +197,132 @@ const clearPlan = {
     comment: undefined,
 };
 
-export default {
-    components: {
-        InfoBalloon,
-        CategoriesForm,
-    },
-    props: {},
-    emits: ['call-to-end'],
-    setup() {
-        return {
-            iconPlus: shallowRef(CirclePlusFilled),
-            iconCheck: shallowRef(Select),
-            iconDelete: shallowRef(Delete),
-            iconCancel: shallowRef(CloseBold),
-        };
-    },
-    data() {
-        return {
-            newPlan: {},
-            planRules: {
-                sum: [{ required: true, message: 'Сумма - обязательное поле', trigger: 'blur' }],
-                category_id: [
-                    { required: true, message: 'Категория - обязательное поле', trigger: 'blur' },
-                ],
-                date: [{ required: true, message: 'Дата - обязательное поле', trigger: 'change' }],
-            },
-            isEditMode: false,
-            multipleSum: [],
-            sumPart: '',
-            sumPartsAll: [],
-            categoryDialog: false,
-        };
-    },
-    computed: {
-        categoriesStored() {
-            return this.$store.getters.getData('categories');
-        },
-        categories() {
-            const categories = {
-                income: [],
-                expense: [],
-                savings: [],
-            };
-            this.categoriesStored?.forEach(category => {
-                if (category.type === 'savings') return categories.savings.push(category);
-                if (category.status === 'income') return categories.income.push(category);
-                return categories.expense.push(category);
-            });
-            return categories;
-        },
-        routeQuery() {
-            return this.$route.query;
-        },
-    },
-    methods: {
-        jumpRoute(path) {
-            this.$router.push({ path });
-        },
-        processPlan(mode) {
-            const process = async () => {
-                try {
-                    const plans = new Plans();
-                    let changes;
-                    if (mode === 'delete') changes = plans.delete(this.newPlan._id);
-                    if (mode === 'change') changes = plans.change(this.newPlan);
-                    if (mode === 'add') changes = plans.add(this.newPlan);
-                    this.cancelProcessing();
-                    await this.$store.dispatch('saveDataChanges', changes);
-                    this.$message({
-                        type: 'success',
-                        message: 'Сохранено',
-                    });
-                } catch (err) {
-                    notifyWrap(err);
-                }
-            };
-            if (mode === 'delete')
-                return this.$confirm('Восстановить план будет нельзя', 'Удалить план?', {
-                    confirmButtonText: 'Удалить',
-                    confirmButtonClass: 'el-button--danger',
-                })
-                    .then(process)
-                    .catch(err => err);
-
-            this.$refs.planForm.validate(async valid => {
-                if (!valid) {
-                    this.$notify({
-                        title: 'Проверьте поля формы',
-                        type: 'error',
-                    });
-                    return false;
-                }
-                process();
-            });
-        },
-        cancelProcessing() {
-            this.$emit('call-to-end');
-        },
-        readFromRouteQuery() {
-            Object.keys(clearPlan).forEach(field => {
-                this.newPlan[field] = this.$route.query[field];
-            });
-            if (JSON.parse(this.$route.query?.isEdit || 'false')) this.isEditMode = true;
-            else this.isEditMode = false;
-            if (!this.newPlan.date) this.newPlan.date = new Date();
-        },
-        addSumPart() {
-            if (!/-?\d+\.?\d*/.test(this.sumPart)) return;
-            this.sumPartsAll.push(this.sumPart);
-            this.sumPart = '';
-        },
-        deleteSumPart(index) {
-            this.sumPartsAll.splice(index, 1);
-        },
-        replaceSumPartValue(value) {
-            let result = value.replace(/(?<=^(-\d*)|(\d+))-|(?<=\d+\.\d*)[-\.]|[^-\d\.]|^\./g, '');
-            return result;
-        },
-        handleCancelCategory() {
-            this.categoryDialog = false;
-        },
-        openCategoryDialog() {
-            this.categoryDialog = true;
-        },
-    },
-    watch: {
-        routeQuery: {
-            handler(nv) {
-                // console.log(nv);
-                this.readFromRouteQuery();
-            },
-            deep: true,
-        },
-        sumPartsAll: {
-            handler(nv) {
-                if (!nv.length) return;
-                this.newPlan.sum = nv.reduce((sum, curr) => {
-                    let part = Math.round(+curr * 100) / 100;
-                    return (sum += part);
-                }, 0);
-            },
-            deep: true,
-        },
-        'newPlan.date': {
-            handler(nv) {
-                if (!this.newPlan.dateLast) return;
-                if (!nv || !this.$dayjs(nv).isBefore(this.$dayjs(this.newPlan.dateLast), 'month')) {
-                    delete this.newPlan.dateLast;
-                }
-            },
-            deep: true,
-        },
-        'newPlan.dateLast': {
-            handler(nv) {
-                console.log(nv);
-            },
-            deep: true,
-        },
-    },
-    mounted() {
-        this.readFromRouteQuery();
-    },
+const emit = defineEmits(['call-to-end', 'update-plan', 'update-category']);
+const iconPlus = shallowRef(CirclePlusFilled);
+const iconCheck = shallowRef(Select);
+const iconDelete = shallowRef(Delete);
+const iconCancel = shallowRef(CloseBold);
+const newPlan = ref({});
+const planRules = {
+    sum: [{ required: true, message: 'Сумма - обязательное поле', trigger: 'blur' }],
+    category_id: [{ required: true, message: 'Категория - обязательное поле', trigger: 'blur' }],
+    date: [{ required: true, message: 'Дата - обязательное поле', trigger: 'change' }],
 };
+const isEditMode = ref(false);
+const categoryDialog = ref(false);
+
+const planForm = ref(null);
+const categories = ref(null);
+
+const routeQuery = computed(() => {
+    return router.currentRoute.value.query;
+});
+
+const processPlan = mode => {
+    const process = async () => {
+        try {
+            if (mode === 'delete') {
+                await dbController.deletePlan(newPlan.value._id);
+            } else {
+                const params = {};
+                params.category_id = newPlan.value.category_id;
+                params.sum = +newPlan.value.sum || 0;
+                params.date = formatHelper.getISOYearMonthString(newPlan.value.date);
+                params.comment = newPlan.value.comment || null;
+                const dateLast = newPlan.value.dateLast
+                    ? formatHelper.getISOYearMonthString(newPlan.value.dateLast)
+                    : null;
+
+                const isMultiPlans = !!dateLast;
+                if (mode === 'change') {
+                    if (isMultiPlans) {
+                        await dbController.setSamePlans(params, newPlan.value._id, dateLast);
+                    } else {
+                        await dbController.setPlan(params, newPlan.value._id);
+                    }
+                }
+                if (mode === 'add') {
+                    if (isMultiPlans) {
+                        await dbController.setSamePlans(params, null, dateLast);
+                    } else {
+                        await dbController.setPlan(params);
+                    }
+                }
+            }
+
+            emit('update-plan');
+            cancelProcessing();
+
+            ElMessage({
+                type: 'success',
+                message: 'Сохранено',
+            });
+        } catch (err) {
+            notifyWrap(err);
+        }
+    };
+    if (mode === 'delete') {
+        return ElMessageBox.confirm('Восстановить план будет нельзя', 'Удалить план?', {
+            confirmButtonText: 'Удалить',
+            confirmButtonClass: 'el-button--danger',
+        })
+            .then(process)
+            .catch(err => err);
+    }
+
+    planForm.value.validate(async valid => {
+        if (!valid) {
+            ElNotification({
+                title: 'Проверьте поля формы',
+                type: 'error',
+            });
+            return false;
+        }
+        process();
+    });
+};
+const cancelProcessing = () => {
+    emit('call-to-end');
+};
+const readFromRouteQuery = () => {
+    Object.keys(clearPlan).forEach(field => {
+        newPlan.value[field] = routeQuery.value[field];
+    });
+    if (JSON.parse(routeQuery.value?.isEdit || 'false')) isEditMode.value = true;
+    else isEditMode.value = false;
+    if (!newPlan.value.date) newPlan.value.date = new Date();
+};
+const handleCancelCategory = () => {
+    categoryDialog.value = false;
+};
+const openCategoryDialog = () => {
+    categoryDialog.value = true;
+};
+
+const loadCategories = async () => {
+    try {
+        categories.value = await dbController.getCategoriesByGroups();
+    } catch (error) {
+        console.log(error);
+    }
+};
+watch(routeQuery, () => {
+    readFromRouteQuery();
+});
+watch(
+    () => newPlan.date,
+    nv => {
+        if (!newPlan.value.dateLast) return;
+        if (!nv || !dayjs(nv).isBefore(dayjs(newPlan.value.dateLast), 'month')) {
+            delete newPlan.value.dateLast;
+        }
+    }
+);
+
+onMounted(() => {
+    loadCategories();
+    readFromRouteQuery();
+});
 </script>
 <style scoped>
 .form-container {
@@ -356,10 +346,6 @@ export default {
     display: flex;
     justify-content: center;
     margin-top: 8px;
-}
-
-.el-form-item.multipleSum {
-    grid-row: span 2;
 }
 
 .sum_parts {
