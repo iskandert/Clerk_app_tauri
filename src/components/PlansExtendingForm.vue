@@ -13,7 +13,7 @@
             >
                 <el-date-picker
                     v-model="extendingSettings.date"
-                    :disabled-date="time => $dayjs(time).isBefore($dayjs(), 'month')"
+                    :disabled-date="time => dayjs(time).isBefore(dayjs(), 'month')"
                     type="month"
                     placeholder="Выберите дату"
                     format="MMMM YYYY"
@@ -25,9 +25,7 @@
             >
                 <el-date-picker
                     v-model="extendingSettings.dateLast"
-                    :disabled-date="
-                        time => !$dayjs(time).isAfter($dayjs(extendingSettings.date), 'month')
-                    "
+                    :disabled-date="time => !dayjs(time).isAfter(dayjs(extendingSettings.date), 'month')"
                     type="month"
                     placeholder="Выберите дату"
                     format="MMMM YYYY"
@@ -44,30 +42,44 @@
                     multiple
                     v-if="!isAllCategs"
                 >
-                    <el-option-group label="Расходы">
-                        <el-option
-                            v-for="({ name, _id }, index) in categories?.expense"
-                            :key="index"
-                            :value="_id"
-                            :label="name"
-                        ></el-option>
-                    </el-option-group>
-                    <el-option-group label="Доходы">
-                        <el-option
-                            v-for="({ name, _id }, index) in categories?.income"
-                            :key="index"
-                            :value="_id"
-                            :label="name"
-                        ></el-option>
-                    </el-option-group>
-                    <el-option-group label="Накопления">
-                        <el-option
-                            v-for="({ name, _id }, index) in categories?.savings"
-                            :key="index"
-                            :value="_id"
-                            :label="name"
-                        ></el-option>
-                    </el-option-group>
+                    <template v-if="categories">
+                        <el-option-group label="Расходы">
+                            <el-option
+                                v-for="{ name, _id } in categories[categoryStatusEnum.EXPENSE][
+                                    categoryTypeEnum.DEFAULT
+                                ]"
+                                :key="_id"
+                                :value="_id"
+                                :label="name"
+                            ></el-option>
+                        </el-option-group>
+                        <el-option-group label="В накопления">
+                            <el-option
+                                v-for="{ name, _id } in categories[categoryStatusEnum.EXPENSE][
+                                    categoryTypeEnum.SAVINGS
+                                ]"
+                                :key="_id"
+                                :value="_id"
+                                :label="name"
+                            ></el-option>
+                        </el-option-group>
+                        <el-option-group label="Доходы">
+                            <el-option
+                                v-for="{ name, _id } in categories[categoryStatusEnum.INCOME][categoryTypeEnum.DEFAULT]"
+                                :key="_id"
+                                :value="_id"
+                                :label="name"
+                            ></el-option>
+                        </el-option-group>
+                        <el-option-group label="Из накоплений">
+                            <el-option
+                                v-for="{ name, _id } in categories[categoryStatusEnum.INCOME][categoryTypeEnum.SAVINGS]"
+                                :key="_id"
+                                :value="_id"
+                                :label="name"
+                            ></el-option>
+                        </el-option-group>
+                    </template>
                 </el-select>
                 <el-checkbox
                     v-model="isAllCategs"
@@ -94,12 +106,17 @@
         </div>
     </div>
 </template>
-<script>
+<script setup>
 import { CirclePlusFilled, Select, Delete, CloseBold } from '@element-plus/icons-vue';
-import { shallowRef } from 'vue';
+import { computed, onMounted, ref, shallowRef, watch } from 'vue';
 import { cloneByJSON, notifyWrap } from '../services/utils';
 import { Plans } from '../services/changings';
 import InfoBalloon from '../components/InfoBalloon.vue';
+import dayjs from 'dayjs';
+import dbController from '../services/db/controller';
+import { ElMessage, ElNotification } from 'element-plus';
+import formatHelper from '../services/helpers/formatHelper';
+import { categoryStatusEnum, categoryTypeEnum } from '../services/constants';
 
 const clearSettings = {
     categories_ids: [],
@@ -107,119 +124,100 @@ const clearSettings = {
     dateLast: undefined,
 };
 
-export default {
-    components: {
-        InfoBalloon,
-    },
-    props: {},
-    emits: ['call-to-end'],
-    setup() {
-        return {
-            iconCheck: shallowRef(Select),
-            iconCancel: shallowRef(CloseBold),
-        };
-    },
-    data() {
-        return {
-            extendingSettings: cloneByJSON(clearSettings),
-            isAllCategs: false,
-            extendingRules: {
-                categories_ids: [
-                    {
-                        required: true,
-                        message: 'Нужно выбрать хотя бы одну категорию',
-                        trigger: 'blur',
-                    },
-                ],
-                date: [
-                    {
-                        required: true,
-                        message: 'Нужно выбрать продляемый месяц',
-                        trigger: 'change',
-                    },
-                ],
-                dateLast: [
-                    { required: true, message: 'Нужно выбрать конечный месяц', trigger: 'change' },
-                ],
-            },
-        };
-    },
-    computed: {
-        categoriesStored() {
-            return this.$store.getters.getData('categories');
-        },
-        categories() {
-            const categories = {
-                income: [],
-                expense: [],
-                savings: [],
-            };
-            this.categoriesStored?.forEach(category => {
-                if (category.type === 'savings') return categories.savings.push(category);
-                if (category.status === 'income') return categories.income.push(category);
-                return categories.expense.push(category);
-            });
-            return categories;
-        },
-    },
-    methods: {
-        processPlan() {
-            this.$refs.extendingForm.validate(async valid => {
-                if (!valid) {
-                    this.$notify({
-                        title: 'Проверьте поля формы',
-                        type: 'error',
-                    });
-                    return false;
-                }
-                try {
-                    const plans = new Plans();
-                    let changes = plans.extendMany(this.extendingSettings);
-                    this.cancelProcessing();
+const emit = defineEmits(['call-to-end', 'update-plan']);
 
-                    await this.$store.dispatch('saveDataChanges', changes);
-                    this.$message({
-                        type: 'success',
-                        message: 'Сохранено',
-                    });
-                } catch (err) {
-                    if (err === 'cancel') return;
-                    notifyWrap(err);
-                }
-            });
+const iconCheck = shallowRef(Select);
+const iconCancel = shallowRef(CloseBold);
+
+const extendingForm = ref(null);
+const categories = ref(null);
+
+const extendingSettings = ref(cloneByJSON(clearSettings));
+const isAllCategs = ref(false);
+const extendingRules = {
+    categories_ids: [
+        {
+            required: true,
+            message: 'Нужно выбрать хотя бы одну категорию',
+            trigger: 'blur',
         },
-        cancelProcessing() {
-            this.$emit('call-to-end');
-            this.extendingSettings = cloneByJSON(clearSettings);
+    ],
+    date: [
+        {
+            required: true,
+            message: 'Нужно выбрать продляемый месяц',
+            trigger: 'change',
         },
-    },
-    watch: {
-        'extendingSettings.date': {
-            handler(nv) {
-                if (!this.extendingSettings.dateLast) return;
-                if (
-                    !nv ||
-                    !this.$dayjs(nv).isBefore(this.$dayjs(this.extendingSettings.dateLast), 'month')
-                ) {
-                    this.extendingSettings.dateLast = undefined;
-                }
-            },
-            deep: true,
-        },
-        'extendingSettings.dateLast': {
-            handler(nv) {
-                console.log(nv);
-            },
-            deep: true,
-        },
-        isAllCategs(nv) {
-            if (nv)
-                this.extendingSettings.categories_ids = this.categoriesStored.map(({ _id }) => _id);
-            else this.extendingSettings.categories_ids = [];
-        },
-    },
-    mounted() {},
+    ],
+    dateLast: [{ required: true, message: 'Нужно выбрать конечный месяц', trigger: 'change' }],
 };
+
+const categoriesFlatten = computed(() =>
+    Object.values(categories.value)
+        .map(obj => Object.values(obj))
+        .flat(2)
+);
+
+const processPlan = () => {
+    extendingForm.value.validate(async valid => {
+        if (!valid) {
+            ElNotification({
+                title: 'Проверьте поля формы',
+                type: 'error',
+            });
+            return false;
+        }
+        try {
+            await dbController.extendPlans(
+                formatHelper.getISOYearMonthString(extendingSettings.value.date),
+                formatHelper.getISOYearMonthString(extendingSettings.value.dateLast),
+                extendingSettings.value.categories_ids
+            );
+            emit('update-plan');
+            cancelProcessing();
+
+            ElMessage({
+                type: 'success',
+                message: 'Сохранено',
+            });
+        } catch (err) {
+            if (err === 'cancel') return;
+            notifyWrap(err);
+        }
+    });
+};
+const cancelProcessing = () => {
+    emit('call-to-end');
+    extendingSettings.value = cloneByJSON(clearSettings);
+};
+
+const loadCategories = async () => {
+    try {
+        categories.value = await dbController.getCategoriesByGroups(true);
+    } catch (error) {
+        console.log(error);
+    }
+};
+watch(
+    () => extendingSettings.value.date,
+    nv => {
+        if (!extendingSettings.value.dateLast) return;
+        if (!nv || !dayjs(nv).isBefore(dayjs(extendingSettings.value.dateLast), 'month')) {
+            extendingSettings.value.dateLast = undefined;
+        }
+    }
+);
+watch(isAllCategs, nv => {
+    if (nv) {
+        extendingSettings.value.categories_ids = categoriesFlatten.value.map(({ _id }) => _id);
+    } else {
+        extendingSettings.value.categories_ids = [];
+    }
+});
+
+onMounted(() => {
+    loadCategories();
+});
 </script>
 <style scoped>
 .form-container {

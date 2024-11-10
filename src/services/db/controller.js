@@ -46,7 +46,7 @@ const dbController = {
     deleteCheck,
     getCurrentBalance,
     getBalanceDynamic,
-    getPlan,
+    getPlan: _id => getPlan(_id),
     setPlan: (data, _id = null) => setPlan(data, _id),
     setSamePlans: (data, _id = null, _endDate = null) => setSamePlans(data, _id, _endDate),
     extendPlans,

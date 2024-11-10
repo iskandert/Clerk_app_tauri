@@ -25,19 +25,28 @@ const {
 
 const { READONLY, READWRITE } = dbModeEnum;
 
-const getPlan = async _id => {
+const getPlan = async (_id, transaction = null) => {
     if (!_id || !schemaHelper.plan.validator._id(_id)) {
         throw errorHelper.create.validation('getPlan', { _id });
     }
 
+    let tx = transaction;
     try {
         const db = getDBInstanse();
-        const record = await db.get(PLANS_STORE_NAME, _id);
+        tx ||= db.transaction([PLANS_STORE_NAME], READONLY);
+        const store = tx.objectStore(PLANS_STORE_NAME);
+        const record = await store.get(_id);
         if (!record) {
             throw errorHelper.create.notFound();
         }
+        if (!transaction) {
+            await tx.done;
+        }
         return record;
     } catch (error) {
+        try {
+            tx?.abort();
+        } catch {}
         errorHelper.throwCustomOrInternal(error);
     }
 };
@@ -106,7 +115,7 @@ const setSamePlans = async (data = null, _id = null, endDate, transaction = null
         if (data) {
             record = await setPlan(data, _id, tx);
         } else {
-            record = await getPlan(_id);
+            record = await getPlan(_id, tx);
         }
 
         if (formatHelper.getISOYearMonthString() > record.date || record.date >= endDate) {
@@ -142,42 +151,36 @@ const setSamePlans = async (data = null, _id = null, endDate, transaction = null
     }
 };
 
-const extendPlans = async (date, endDate) => {
+const extendPlans = async (date, endDate, categoryIds) => {
     if (
         !schemaHelper.plan.validator.date(date) ||
         !schemaHelper.plan.validator.date(endDate) ||
         formatHelper.getISOYearMonthString() > formatHelper.getISOYearMonthString(dayjs(date).add(1, 'month')) ||
-        endDate <= date
+        endDate <= date ||
+        !categoryIds?.length ||
+        categoryIds.some(_id => !schemaHelper.category.validator._id(_id))
     ) {
-        throw errorHelper.create.validation('extendPlans', { date, endDate });
+        throw errorHelper.create.validation('extendPlans', { date, endDate, categoryIds });
     }
 
     let tx;
     try {
         const db = getDBInstanse();
         tx = db.transaction([PLANS_STORE_NAME, CATEGORIES_STORE_NAME], READWRITE);
-        const plansDateIndex = tx.objectStore(PLANS_STORE_NAME).index(DATE_INDEX);
+        const plansIndex = tx.objectStore(PLANS_STORE_NAME).index(CATEGORY_ID_AND_DATE_INDEX);
         const categoriesStore = tx.objectStore(CATEGORIES_STORE_NAME);
 
-        const categories = await categoriesStore.getAll();
-        const categoriesByIds = categories.reduce((acc, curr) => {
-            acc[curr._id] = curr;
-            return acc;
-        }, {});
-
-        const plans = await plansDateIndex.getAll(date);
-        const planIdsToExtend = [];
-        plans.forEach(({ category_id, _id }) => {
-            const { _isEditable } = categoriesByIds[category_id];
-
-            if (_isEditable) {
-                planIdsToExtend.push(_id);
-            }
-        });
+        const categories = (await categoriesStore.getAll()).filter(({ _id }) => categoryIds.includes(_id));
+        if (categories.some(({ _isEditable }) => !_isEditable)) {
+            throw errorHelper.create.validation('extendPlans _isEditable', { categories });
+        }
 
         await Promise.all(
-            planIdsToExtend.map(async _id => {
-                await setSamePlans(null, _id, endDate);
+            categoryIds.map(async _id => {
+                const plan = await plansIndex.get([_id, date]);
+                if (plan) {
+                    await setSamePlans(null, plan._id, endDate, tx);
+                }
             })
         );
         await tx.done;
