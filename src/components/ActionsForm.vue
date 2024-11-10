@@ -427,7 +427,7 @@ const nextFocus = (name, ref) => {
 
 const loadCategories = async () => {
     try {
-        categories.value = await dbController.getCategoriesByGroups();
+        categories.value = await dbController.getCategoriesByGroups(true);
     } catch (error) {
         console.log(error);
     }

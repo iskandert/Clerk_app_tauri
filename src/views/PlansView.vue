@@ -399,9 +399,9 @@
             <PlansForm
                 @call-to-end="handleCancelPlan"
                 @update-plan="
-                    () => {
-                        loadBalanceDynamic();
-                        loadPlans();
+                    async () => {
+                        await loadBalanceDynamic();
+                        await loadPlans();
                     }
                 "
                 @update-category="

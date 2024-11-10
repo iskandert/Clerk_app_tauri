@@ -291,8 +291,8 @@ const _updateUnaccountedByDate = async ({ date, transaction = null }) => {
         }
 
         const actions = await actionsDateIndex.getAll(IDBKeyRange.bound(prevCheck.date, nextCheck.date, true, false));
-        const calculatedDefaultSum = prevCheck.default_sum;
-        const calculatedSavingsSum = prevCheck.savings_sum;
+        let calculatedDefaultSum = prevCheck.default_sum;
+        let calculatedSavingsSum = prevCheck.savings_sum;
 
         actions.forEach(({ category_id, sum }) => {
             const { status, type } = categoriesByIds[category_id];
