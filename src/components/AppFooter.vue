@@ -54,6 +54,8 @@
                     >@iskandert</el-link
                 >
             </span>
+
+            <span class="right_part"> v.{{ $store.state.version }} </span>
         </div>
     </div>
 </template>
@@ -133,6 +135,11 @@ export default {
         height: var(--footer-height);
     }
 
+    .footer-bar > .right_part {
+        font-size: 12px;
+        line-height: 1;
+        color: var(--el-color-gray-light-5);
+    }
     .footer-bar > .left_part,
     .footer-bar > .left_part :deep(span) {
         font-size: 12px;
