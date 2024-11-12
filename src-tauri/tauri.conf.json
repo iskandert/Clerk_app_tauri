@@ -1,6 +1,6 @@
 {
-  "productName": "clerk_app_win",
-  "version": "0.0.0",
+  "productName": "Clerk App",
+  "version": "1.0.0",
   "identifier": "com.tauri.dev1",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -10,7 +10,7 @@
   },
   "app": {"windows": [
       {
-        "title": "clerk_app_win",
+        "title": "Clerk App",
         "width": 800,
         "height": 600
       }
