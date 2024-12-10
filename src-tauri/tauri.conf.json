@@ -1,6 +1,6 @@
 {
   "productName": "Clerk App",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "identifier": "com.tauri.dev1",
   "build": {
     "beforeDevCommand": "npm run dev",
