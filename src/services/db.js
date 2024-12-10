@@ -152,7 +152,7 @@ const fillDB = async data => {
                 return await _setCategory({
                     data,
                     _id: data._id,
-                    isAccounted: data.isAccounted,
+                    isAccounted: !!data._isAccounted,
                     needUpdateTime: false,
                     transaction: tx,
                 });
@@ -202,9 +202,8 @@ const fillDB = async data => {
             })
         );
 
+        await ensurePastPlans(tx);
         if (isV0) {
-            await ensurePastPlans(tx);
-
             const firstCheck = await _getCheckFirst({ transaction: tx });
             if (firstCheck) {
                 await _updateConfigStart({ firstCheck, transaction: tx });

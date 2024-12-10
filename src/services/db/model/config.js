@@ -129,7 +129,8 @@ const getBalanceDynamic = async () => {
             });
 
             balances.push(balance);
-            date = formatHelper.getISOYearMonthString(dayjs(`${date}-01`).add(1, 'month'));
+            const currentDayjs = dayjs(`${date}-01`);
+            date = formatHelper.getISOYearMonthString(currentDayjs.date(currentDayjs.daysInMonth()).add(1, 'day'));
         }
 
         await tx.done;

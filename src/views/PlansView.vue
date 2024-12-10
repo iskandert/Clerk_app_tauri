@@ -652,7 +652,9 @@ const datesRange = computed(() => {
     let currentDate = firstDate;
     while (currentDate <= lastDate) {
         dates.push(currentDate);
-        currentDate = formatHelper.getISOYearMonthString(dayjs(currentDate).add(1, 'month'));
+        currentDate = formatHelper.getISOYearMonthString(
+            dayjs(currentDate).date(dayjs(currentDate).daysInMonth()).add(1, 'day')
+        );
     }
     return dates;
 });

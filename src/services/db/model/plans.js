@@ -125,7 +125,7 @@ const setSamePlans = async (data = null, _id = null, endDate, transaction = null
         const dates = [];
         let currentDate = dayjs(record.date);
         do {
-            currentDate = currentDate.add(1, 'month');
+            currentDate = currentDate.date(currentDate.daysInMonth()).add(1, 'day');
             dates.push(formatHelper.getISOYearMonthString(currentDate));
         } while (currentDate.isBefore(endDate, 'month'));
 
@@ -155,7 +155,8 @@ const extendPlans = async (date, endDate, categoryIds) => {
     if (
         !schemaHelper.plan.validator.date(date) ||
         !schemaHelper.plan.validator.date(endDate) ||
-        formatHelper.getISOYearMonthString() > formatHelper.getISOYearMonthString(dayjs(date).add(1, 'month')) ||
+        formatHelper.getISOYearMonthString() >
+            formatHelper.getISOYearMonthString(dayjs(date).date(dayjs(date).daysInMonth()).add(1, 'day')) ||
         endDate <= date ||
         !categoryIds?.length ||
         categoryIds.some(_id => !schemaHelper.category.validator._id(_id))
@@ -289,10 +290,7 @@ const recalcPlansOfMonth = async (date, transaction = null) => {
         const plansDateIndex = tx.objectStore(PLANS_STORE_NAME).index(DATE_INDEX);
         const actionsDateIndex = tx.objectStore(ACTIONS_STORE_NAME).index(DATE_INDEX);
         const actions = await actionsDateIndex.getAll(
-            IDBKeyRange.bound(
-                `${date}-01`,
-                formatHelper.getISODateString(dayjs(date).date(1).add(1, 'month').subtract(1, 'day'))
-            )
+            IDBKeyRange.bound(`${date}-01`, formatHelper.getISODateString(dayjs(date).date(dayjs(date).daysInMonth())))
         );
         const actionsSum = {};
 
@@ -406,7 +404,7 @@ const ensurePastPlans = async (transaction = null) => {
                 await recalcPlansOfMonth(date, tx);
 
                 // const plan = await plansIndex.get(key);
-                // const lastDate = formatHelper.getISODateString(dayjs(date).date(1).add(1, 'month').subtract(1, 'day'));
+                // const lastDate = formatHelper.getISODateString(dayjs(date).date(dayjs(date).daysInMonth()));
                 // // const actions = await actionsIndex.getAll(key);
                 // const actions = await actionsIndex.getAll(
                 //     IDBKeyRange.bound([category_id, `${date}-01`], [category_id, lastDate])

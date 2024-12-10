@@ -231,11 +231,11 @@ const _deleteUnaccountedByDate = async ({ date, transaction = null }) => {
 
         const unaccountedCategories = await _getUnaccountedCategories({ transaction: tx });
         const unaccountedCategoryIds = unaccountedCategories.map(({ _id }) => _id);
-        const unaccountedActions = (await actionsDateIndex.getAll(date)).filter(({ _id }) => {
-            return unaccountedCategoryIds.includes(_id);
+        const unaccountedActions = (await actionsDateIndex.getAll(date)).filter(({ category_id }) => {
+            return unaccountedCategoryIds.includes(category_id);
         });
 
-        for (action of unaccountedActions) {
+        for (const action of unaccountedActions) {
             await _deleteAction({
                 _id: action._id,
                 transaction: tx,
@@ -273,6 +273,8 @@ const _updateUnaccountedByDate = async ({ date, transaction = null }) => {
         const actionsDateIndex = actionsStore.index(DATE_INDEX);
         const categoriesStore = tx.objectStore(CATEGORIES_STORE_NAME);
         const categories = await categoriesStore.getAll();
+        const unaccountedCategories = await _getUnaccountedCategories({ transaction: tx });
+        const unaccountedCategoryIds = unaccountedCategories.map(({ _id }) => _id);
         const categoriesByIds = categories.reduce((acc, curr) => {
             acc[curr._id] = curr;
             return acc;
@@ -294,21 +296,23 @@ const _updateUnaccountedByDate = async ({ date, transaction = null }) => {
         let calculatedDefaultSum = prevCheck.default_sum;
         let calculatedSavingsSum = prevCheck.savings_sum;
 
-        actions.forEach(({ category_id, sum }) => {
-            const { status, type } = categoriesByIds[category_id];
+        actions
+            .filter(({ category_id }) => !unaccountedCategoryIds.includes(category_id))
+            .forEach(({ category_id, sum }) => {
+                const { status, type } = categoriesByIds[category_id];
 
-            if (status === categoryStatusEnum.EXPENSE) {
-                calculatedDefaultSum -= sum;
-                if (type === categoryTypeEnum.SAVINGS) {
-                    calculatedSavingsSum += sum;
+                if (status === categoryStatusEnum.EXPENSE) {
+                    calculatedDefaultSum -= sum;
+                    if (type === categoryTypeEnum.SAVINGS) {
+                        calculatedSavingsSum += sum;
+                    }
+                } else if (status === categoryStatusEnum.INCOME) {
+                    calculatedDefaultSum += sum;
+                    if (type === categoryTypeEnum.SAVINGS) {
+                        calculatedSavingsSum -= sum;
+                    }
                 }
-            } else if (status === categoryStatusEnum.INCOME) {
-                calculatedDefaultSum += sum;
-                if (type === categoryTypeEnum.SAVINGS) {
-                    calculatedSavingsSum -= sum;
-                }
-            }
-        });
+            });
 
         const savingsDiff = calculatedSavingsSum - nextCheck.savings_sum;
         const defaultDiff = calculatedDefaultSum - nextCheck.default_sum + savingsDiff;
@@ -317,7 +321,7 @@ const _updateUnaccountedByDate = async ({ date, transaction = null }) => {
             await _setUnaccountedAction({
                 date: nextCheck.date,
                 sum: Math.abs(savingsDiff),
-                status: savingsDiff > 0 ? categoryStatusEnum.EXPENSE : categoryStatusEnum.INCOME,
+                status: savingsDiff < 0 ? categoryStatusEnum.EXPENSE : categoryStatusEnum.INCOME,
                 type: categoryTypeEnum.SAVINGS,
                 transaction: tx,
             });
@@ -326,7 +330,7 @@ const _updateUnaccountedByDate = async ({ date, transaction = null }) => {
             await _setUnaccountedAction({
                 date: nextCheck.date,
                 sum: Math.abs(defaultDiff),
-                status: defaultDiff > 0 ? categoryStatusEnum.INCOME : categoryStatusEnum.EXPENSE,
+                status: defaultDiff < 0 ? categoryStatusEnum.INCOME : categoryStatusEnum.EXPENSE,
                 type: categoryTypeEnum.DEFAULT,
                 transaction: tx,
             });

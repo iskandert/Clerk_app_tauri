@@ -43,7 +43,8 @@ const getActionsListByMonth = async ISOYearMonth => {
         const actionsIndex = tx.objectStore(ACTIONS_STORE_NAME).index(DATE_INDEX);
 
         const startDate = `${ISOYearMonth}-01`;
-        const endDate = formatHelper.getISODateString(dayjs(startDate).add(1, 'month'));
+        const startDayjs = dayjs(startDate);
+        const endDate = formatHelper.getISODateString(startDayjs.date(startDayjs.daysInMonth()));
 
         const actions = await actionsIndex.getAll(IDBKeyRange.bound(startDate, endDate));
         const actionsByDates = {};
@@ -190,7 +191,10 @@ const _updateDataByAction = async ({ newAction = null, oldAction = null, transac
         const db = getDBInstanse();
         tx ||= db.transaction(db.objectStoreNames, READWRITE);
 
-        if (oldAction) {
+        if (
+            oldAction &&
+            formatHelper.getISOYearMonthFromISODateString(oldAction.date) < formatHelper.getISOYearMonth()
+        ) {
             await _updatePlanByAction({
                 action: oldAction,
                 isDeleted: true,
@@ -204,7 +208,10 @@ const _updateDataByAction = async ({ newAction = null, oldAction = null, transac
             });
         }
 
-        if (newAction) {
+        if (
+            newAction &&
+            formatHelper.getISOYearMonthFromISODateString(newAction.date) < formatHelper.getISOYearMonth()
+        ) {
             await _updatePlanByAction({
                 action: newAction,
                 isDeleted: false,
@@ -250,7 +257,7 @@ const getActionSumsByCategoryIds = async (ISOYearMonth = formatHelper.getISOYear
         const lastDate =
             ISOYearMonth === currMonth
                 ? formatHelper.getISODateString()
-                : formatHelper.getISODateString(dayjs(firstDate).date(1).add(1, 'month').subtract(1, 'day'));
+                : formatHelper.getISODateString(dayjs(firstDate).date(dayjs(firstDate).daysInMonth()));
 
         console.log(firstDate, lastDate);
 
