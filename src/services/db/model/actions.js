@@ -193,7 +193,7 @@ const _updateDataByAction = async ({ newAction = null, oldAction = null, transac
 
         if (
             oldAction &&
-            formatHelper.getISOYearMonthFromISODateString(oldAction.date) < formatHelper.getISOYearMonth()
+            formatHelper.getISOYearMonthFromISODateString(oldAction.date) < formatHelper.getISOYearMonthString()
         ) {
             await _updatePlanByAction({
                 action: oldAction,
@@ -210,7 +210,7 @@ const _updateDataByAction = async ({ newAction = null, oldAction = null, transac
 
         if (
             newAction &&
-            formatHelper.getISOYearMonthFromISODateString(newAction.date) < formatHelper.getISOYearMonth()
+            formatHelper.getISOYearMonthFromISODateString(newAction.date) < formatHelper.getISOYearMonthString()
         ) {
             await _updatePlanByAction({
                 action: newAction,
