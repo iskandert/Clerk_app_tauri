@@ -26,8 +26,9 @@ const getEuropeanDateNecessary = date => {
     const dateObj = dayjs(date);
     let displayedDate = dateObj.format('D MMMM');
 
-    if (dateObj.year() !== dayjs().year()) {
-        displayedDate += ` ${dayjs().year()} г.`;
+    const dateYear = dateObj.year();
+    if (dateYear !== dayjs().year()) {
+        displayedDate += ` ${dateYear}`;
     }
 
     return displayedDate;
@@ -86,7 +87,7 @@ const getWeekDay = (date, firstCapitalized = false) => {
 
 const getWeekDayShort = date => {
     const day = dayjs(date).day();
-    return ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'][day];
+    return ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'][day];
 };
 
 const getFirstCapitalized = value => {
