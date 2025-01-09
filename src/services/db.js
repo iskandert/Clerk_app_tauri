@@ -46,6 +46,8 @@ const {
 const { READONLY, READWRITE } = dbModeEnum;
 
 const initDB = async () => {
+    let needEnsurePastPlans = true;
+
     const db = await openDB(DB_NAME, DB_VERSION, {
         upgrade(db) {
             const categoriesVault = db.createObjectStore(CATEGORIES_STORE_NAME, { keyPath: '_id' });
@@ -63,6 +65,7 @@ const initDB = async () => {
 
             plansVault.createIndex(DATE_INDEX, 'date');
             plansVault.createIndex(CATEGORY_ID_AND_DATE_INDEX, ['category_id', 'date']);
+            needEnsurePastPlans = false; // only if IndexedDB re-inited
         },
         blocked() {
             //
@@ -76,6 +79,16 @@ const initDB = async () => {
     });
 
     setDBInstanse(db);
+
+    if (needEnsurePastPlans) {
+        try {
+            const tx = db.transaction(db.objectStoreNames, READWRITE);
+            await ensurePastPlans(tx);
+            await tx.done;
+        } catch (error) {
+            console.log(error);
+        }
+    }
 };
 
 const closeDB = async () => {
