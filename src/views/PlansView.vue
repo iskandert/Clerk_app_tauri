@@ -661,8 +661,9 @@ const datesRange = computed(() => {
 const datesList = computed(() => {
     const dates = [...datesRange.value];
 
-    for (let monthsNumber = 1; monthsNumber <= 12; monthsNumber++) {
-        dates.push(formatHelper.getISOYearMonthString(dayjs(dates.at(-1)).add(monthsNumber, 'month')));
+    const lastDate = dayjs(dates.at(-1));
+    for (let monthsCount = 1; monthsCount <= 12; monthsCount++) {
+        dates.push(formatHelper.getISOYearMonthString(lastDate.add(monthsCount, 'month')));
     }
 
     return isShowFilteredOnly.value ? dates.filter(date => filteredDates.value.includes(date)) : dates;
