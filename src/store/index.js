@@ -9,7 +9,7 @@ import { initEntities } from '../initial.config';
 
 const getDefaultState = () => {
     return {
-        version: '1.0.3',
+        version: '1.0.4',
         token: '',
         isExpired: false,
         expiringTimeout: undefined,
