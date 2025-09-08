@@ -226,7 +226,7 @@ const _updateDataByAction = async ({ newAction = null, oldAction = null, transac
         }
 
         const firstCheck = await _getCheckFirst({ transaction: tx });
-        if (oldAction?.date <= firstCheck.date || newAction?.date <= firstCheck.date) {
+        if (firstCheck && (oldAction?.date <= firstCheck.date || newAction?.date <= firstCheck.date)) {
             await _updateConfigStart({ firstCheck, transaction: tx });
         }
 
